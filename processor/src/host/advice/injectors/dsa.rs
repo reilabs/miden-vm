@@ -21,6 +21,8 @@ use vm_core::{
 #[cfg(feature = "std")]
 pub fn falcon_sign(pk_sk: &[Felt], msg: Word) -> Result<Vec<Felt>, ExecutionError> {
     // Create the corresponding key pair
+
+    use vm_core::ZERO;
     let mut key_pair_bytes = Vec::with_capacity(pk_sk.len());
     for element in pk_sk {
         let value = element.as_int();
@@ -58,9 +60,9 @@ pub fn falcon_sign(pk_sk: &[Felt], msg: Word) -> Result<Vec<Felt>, ExecutionErro
     // We now push the nonce, the expanded key, the signature polynomial, and the product of the
     // expanded key and the signature polynomial to the advice stack.
     let mut result: Vec<Felt> = nonce.to_vec();
-    result.extend(h.inner().iter().map(|a| Felt::from(*a)));
-    result.extend(s2.inner().iter().map(|a| Felt::from(*a)));
-    result.extend(pi.iter().map(|a| Felt::new(*a)));
+    result.extend(h.inner().iter().rev().flat_map(|a| vec![Felt::from(*a), ZERO]));
+    result.extend(s2.inner().iter().rev().flat_map(|a| vec![Felt::from(*a), ZERO]));
+    result.extend(pi.iter().rev().flat_map(|a| vec![Felt::from(*a), ZERO]));
     result.reverse();
     Ok(result)
 }

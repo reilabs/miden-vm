@@ -1,11 +1,94 @@
-use.std::crypto::stark::deep_queries
-
 # CONSTANTS
 # =================================================================================================
 
 const.J=77321994752
 const.M=12289
 const.SQUARE_NORM_BOUND=34034726
+const.C_OFF_FROM_PI=1024
+
+#! +-------+-------+-------+-------+-------+-------+-------+-------+------+------+------+------+------+------+------+---+
+#! |  C01  |  C00  |  C11  |  C10  |  C21  |  C20  |  C31  |  C30  |  x1  |  x0  | acc1 | acc0 |c_addr|   -  |   -  | - |
+#! +-------+-------+-------+-------+-------+-------+-------+-------+------+------+------+------+------+------+------+---+
+#!
+#!                                                       ||
+#!                                                       \/
+#!
+#! +-------+-------+-------+-------+-------+-------+-------+-------+------+------+-------+-------+------+-----+-----+---+
+#! |  C01  |  C00  |  C11  |  C10  |  C21  |  C20  |  C31  |  C30  |  x1  |  x0  | acc1' | acc0' |c_addr|  -  |  -  | - |
+#! +-------+-------+-------+-------+-------+-------+-------+-------+------+------+-------+-------+------+-----+-----+---+
+#!
+#! where:
+#!
+#! 1. acc` = (acc0`, acc0`) := ((((acc * x + c3) * x + c2) * x + c1) * x) + c0
+#!
+#! Cycles: 1
+export.horner_eval
+
+    # I) acc * x + c3
+    #=> [c01, c00, c11, c10, c21, c20, c31, c30, x1, x0, acc1, acc0, c_ptr, ...]   
+
+    # 1) acc * x 
+    dupw.2
+    #=> [x1, x0, acc1, acc0, c01, c00, c11, c10, c21, c20, c31, c30, x1, x0, acc1, acc0, c_ptr, ...]   
+
+    ext2mul
+    #=> [prod1, prod0, c01, c00, c11, c10, c21, c20, c31, c30, x1, x0, acc1, acc0, c_ptr, ...]   
+
+    movup.9 movup.9
+    #=> [c31, c30, prod1, prod0, c01, c00, c11, c10, c21, c20, x1, x0, acc1, acc0, c_ptr, ...]   
+
+    ext2add
+    #=> [res1, res0, c01, c00, c11, c10, c21, c20, x1, x0, acc1, acc0, c_ptr, ...]   
+
+    # II) (acc * x + c3) * x + c2
+
+    # 1) (acc * x + c3) * x
+    dup.9 dup.9
+    #=> [x1, x0, res1, res0, c01, c00, c11, c10, c21, c20, x1, x0, acc1, acc0, c_ptr, ...]   
+    ext2mul
+    #=> [prod1, prod0, c01, c00, c11, c10, c21, c20, x1, x0, acc1, acc0, c_ptr, ...]   
+
+    # 2) (acc * x + c3) * x + c2
+    movup.7 movup.7
+    #=> [c21, c20, prod1, prod0, c01, c00, c11, c10, x1, x0, acc1, acc0, c_ptr, ...]   
+    ext2add
+    #=> [res1, res0, c01, c00, c11, c10, x1, x0, acc1, acc0, c_ptr, ...] 
+
+    # III) ((acc * x + c3) * x + c2) * x + c1
+
+    # 1) ((acc * x + c3) * x + c2) * x
+    dup.7 dup.7
+    #=> [x1, x0, res1, res0, c01, c00, c11, c10, x1, x0, acc1, acc0, c_ptr, ...] 
+    ext2mul
+    #=> [prod1, prod0, c01, c00, c11, c10, x1, x0, acc1, acc0, c_ptr, ...] 
+
+    # 2) ((acc * x + c3) * x + c2) * x + c1
+    movup.5 movup.5
+    #=> [c11, c10, prod1, prod0, c01, c00, x1, x0, acc1, acc0, c_ptr, ...] 
+    ext2add
+    #=> [res1, res0, c01, c00, x1, x0, acc1, acc0, c_ptr, ...] 
+
+    # VI) (((acc * x + c3) * x + c2) * x + c1) * x + c0
+
+    # 1) (((acc * x + c3) * x + c2) * x + c1) * x
+    dup.5 dup.5
+    #=> [x1, x0, res1, res0, c01, c00, x1, x0, acc1, acc0, c_ptr, ...] 
+    ext2mul
+    #=> [prod1, prod0, c01, c00, x1, x0, acc1, acc0, c_ptr, ...] 
+
+    # 2) (((acc * x + c3) * x + c2) * x + c1) * x + c0
+    ext2add
+    #=> [res1, res0, x1, x0, acc1, acc0, c_ptr, ...] 
+
+    # V) Update accumulator
+    swap.4 drop
+    swap.4 drop
+    #=> [x1, x0, res1, res0, c_ptr, ...] 
+
+    # IV) Pad for the next iteration
+    padw padw
+    #=> [X, X, x1, x0, acc1, acc0, c_ptr, ...]
+end
 
 # MODULAR REDUCTION FALCON PRIME
 # =============================================================================================
@@ -75,10 +158,10 @@ end
 #! Input: [c_ptr, MSG, NONCE1, NONCE0, ...]
 #! Output: [...]
 #!
-#! Cycles: 1327
-export.hash_to_point.2
+#! Cycles: 4254
+export.hash_to_point.4
     # Move pointer out of the way
-    movdn.12
+    push.255 add movdn.12
 
     # Store MSG for later absorption
     loc_storew.1 dropw
@@ -92,73 +175,82 @@ export.hash_to_point.2
 
     # Squeeze the coefficents and save them
     repeat.63
-        swapw dup.12
+        loc_storew.3
+        swapw
+        loc_storew.2
+        #=> [c3, c2, c1, c0, c7, c6, c5, c4, CAP, ptr]
+        movup.3 movup.3 push.0.0
+        #=> [0, 0, c1, c0, c3, c2, c7, c6, c5, c4, CAP, ptr]
+        dup.14
         mem_storew
-        swapw dup.12 add.2 swap.13 add.1
+        #=> [0, 0, c1, c0, c3, c2, c7, c6, c5, c4, CAP, ptr]
+        movup.2 drop movup.2 drop
+        #=> [0, 0, c3, c2, c7, c6, c5, c4, CAP, ptr]
+        dup.12
+        sub.1
         mem_storew
+        #=> [0, 0, c3, c2, c7, c6, c5, c4, CAP, ptr]
+        swapw
+        #=> [c7, c6, c5, c4, 0, 0, c3, c2, CAP, ptr]
+        movup.3 movup.3 push.0 push.0
+        #=> [0, 0, c5, c4, c7, c6, 0, 0, c3, c2, CAP, ptr]
+        dup.14
+        sub.2
+        mem_storew
+        #=> [0, 0, c5, c4, c7, c6, 0, 0, c3, c2, CAP, ptr]
+        movup.2 drop movup.2 drop
+        #=> [0, 0, c7, c6, 0, 0, c3, c2, CAP, ptr]
+        dup.12
+        sub.3
+        mem_storew
+        #=> [0, 0, c7, c6, 0, 0, c3, c2, CAP, ptr]
+
+        loc_loadw.2 swapw
+        loc_loadw.3
+        #=> [c7, c6, c5, c4, c3, c2, c1, c0, CAP, ptr]
+        
+        movup.12 sub.4 movdn.12
         hperm
     end
 
     # Save the last remaining coefficients
-    dup.12 add.1 mem_storew dropw
-    movup.8 mem_storew dropw
-
+    loc_storew.3
+    swapw
+    loc_storew.2
+    #=> [c3, c2, c1, c0, c7, c6, c5, c4, CAP, ptr]
+    movup.3 movup.3 push.0.0
+    #=> [0, 0, c1, c0, c3, c2, c7, c6, c5, c4, CAP, ptr]
+    dup.14
+    mem_storew
+    #=> [0, 0, c1, c0, c3, c2, c7, c6, c5, c4, CAP, ptr]
+    movup.2 drop movup.2 drop
+    #=> [0, 0, c3, c2, c7, c6, c5, c4, CAP, ptr]
+    dup.12
+    sub.1
+    mem_storew
+    #=> [0, 0, c3, c2, c7, c6, c5, c4, CAP, ptr]
+    swapw
+    #=> [c7, c6, c5, c4, 0, 0, c3, c2, CAP, ptr]
+    movup.3 movup.3 push.0 push.0
+    #=> [0, 0, c5, c4, c7, c6, 0, 0, c3, c2, CAP, ptr]
+    dup.14
+    sub.2
+    mem_storew
+    #=> [0, 0, c5, c4, c7, c6, 0, 0, c3, c2, CAP, ptr]
+    movup.2 drop movup.2 drop
+    #=> [0, 0, c7, c6, 0, 0, c3, c2, CAP, ptr]
+    dup.12
+    sub.3
+    mem_storew
+    #=> [0, 0, c7, c6, 0, 0, c3, c2, CAP, ptr]
+        
     # Clean up the stack
-    dropw
+    dropw dropw dropw 
+    drop
 end
-
 
 # PROBABILISTIC POLYNOMIAL MULTIPLICATION IN Z_Q[x]
 # =============================================================================================
-
-#! For an element `tau := (tau0, tau1)` in the quadratic extension field, computes all its powers
-#! `tau^i` for `i = 0,..., 512` and stores them in the memory region `[tau_ptr, tau_ptr + 513)`.
-#! The procedure returns `tau_ptr + 513`.
-#!
-#! Input: [tau1, tau0, tau_ptr, ...]
-#! Output: [tau_ptr + 513, ...]
-#!
-#! Cycles: 8323
-export.powers_of_tau
-
-    # 1) Save tau^0 i.e. (0, 1)
-    push.1 push.0.0.0
-    dup.6 add.1 swap.7
-    mem_storew
-    drop drop
-    #=> [0, 1, tau1, tau0, tau_ptr+1, ...]
-
-    # 2) Compute tau^i
-    repeat.512
-        dupw ext2mul
-
-        movup.3 movup.3
-
-        dup.6 add.1 swap.7 mem_storew
-
-        drop drop
-    end
-
-    dropw
-    #=> [tau_ptr + 513, ...]
-end
-
-
-#! Sets the memory region `[ptr, ptr + 512)` to zero. The pointer c_ptr := ptr + 512 is returned
-#! to be used to store the hash-to-point polynomial of the message later on.
-#!
-#! Input: [ptr, ...]
-#! Output: [...]
-#!
-#! Cycles: 2607
-export.set_to_zero
-    padw
-    repeat.512
-        dup.4 add.1 swap.5
-        mem_storew
-    end
-    dropw
-end
 
 #! Takes as input PK, the hash of the coefficients of the polynomial `h` representing the expanded
 #! public key, and a pointer to the memory location where the coefficients of the polynomial `h`
@@ -175,28 +267,23 @@ end
 #! Input: [ptr, PK, ...]
 #! Output: [tau1, tau0, ptr + 512 ...]
 #!
-#! Cycles: 5049
+#! Cycles: 5566
 export.load_h_s2_and_product.1
 
-    # 1) Store PK for later comparison
+   # 1) Store PK for later comparison
     movdn.4
     loc_storew.0
 
     # 2) Prepare stack and load h polynomial. We also range check the coefficients of h.
     padw swapw
     padw
-    repeat.64
+    repeat.128
         adv_pipe
+        dup.7
+        dup.6
+        dup.5
+        dup.4
 
-        dupw.1
-        u32assert2
-        push.M u32lt assert
-        push.M u32lt assert
-        u32assert2
-        push.M u32lt assert
-        push.M u32lt assert
-
-        dupw
         u32assert2
         push.M u32lt assert
         push.M u32lt assert
@@ -216,19 +303,19 @@ export.load_h_s2_and_product.1
 
     # 4) Load s2 (Due to the final norm test we do not need to range check the s2 coefficents)
     padw padw
-    repeat.64
+    repeat.128
         adv_pipe hperm
     end
 
     # 5) Load claimed h * s2 in Z_Q[x]
-    repeat.128
+    repeat.256
         adv_pipe hperm
     end
 
     # 6) Return the challenge point and the incremented pointer
     dropw swapw dropw
     drop drop
-    #=> [tau1, tau0, ptr + 512]
+    #=> [tau1, tau0, ptr + 1024]
 end
 
 #! Checks that pi == h * s2 in Z_Q[x] by evaluating both sides at a random point.
@@ -243,7 +330,7 @@ end
 #! Input: [h_ptr, zeros_ptr, tau_ptr, ...]
 #! Output: [...]
 #!
-#! Cycles: 2504
+#! Cycles: 1166
 export.probablistic_product.4
     # 1) Save the pointers
     push.0 movdn.3
@@ -251,47 +338,46 @@ export.probablistic_product.4
 
     # 2) Compute the evaluation of the h polynomial at the random challenge
 
+    # move pointer back
+    movdn.2
+    #=> [tau1, tau0, h_ptr, ...]
+
     # Accumulator to compute h(tau)
-    padw
+    push.0 movdn.2 push.0 movdn.2
 
     # For mem_stream
     padw padw
+    #=> [X, X, tau1, tau0, 0, 0, h_ptr, ...]
 
     # Compute h(tau)
-    repeat.64
+    repeat.128
         mem_stream
-        repeat.8
-            exec.deep_queries::combine_main
-        end
+        exec.horner_eval
     end
+    #=> [X, X, tau1, tau0, h(tau)1, h(tau)0, h_ptr, ...]
 
     # Save the evaluation h(tau)
-    swapdw loc_storew.1
-    dropw
-    #=> [X, X, X, ...]
+    swapw.2 loc_storew.1
+    #=> [tau1, tau0, h(tau)1, h(tau)0, X, X, ...]
 
     # 3) Compute the evaluation of the s2 polynomial at the random challenge
-    loc_loadw.0
-    add.128
-    #=> [s2_ptr, zeros_ptr, tau_ptr, 0, X, X, ...]
-
+   
     # Accumulator to compute s2(tau)
-    padw
-    swapdw
-    #=> [X, X, 0, 0, 0, 0, s2_ptr, zeros_ptr, tau_ptr, 0, ...]
+    movup.2 drop movup.2 drop
+    push.0 movdn.2 push.0 movdn.2
+    swapw.2
+    #=> [X, X, tau1, tau0, 0, 0, s2_ptr, ...]
 
     # Compute s2(tau)
-    repeat.64
+    repeat.128
         mem_stream
-        repeat.8
-            exec.deep_queries::combine_main
-        end
+        exec.horner_eval
     end
+    #=> [X, X, tau1, tau0, s2(tau)1, s2(tau)0, pi_ptr, ...]
 
     # Save the evaluation of s2(tau)
-    swapdw loc_storew.2
-    dropw
-    #=> [X, X, X, ...]
+    swapw.2 loc_storew.2
+    #=> [tau1, tau0, s2(tau)1, s2(tau)0, X, X, ...]
 
     # 4) Compute the evaluation of the product polynomial pi := h * s2 at the random challenge where
     #       the product is over Z_Q[x]
@@ -299,85 +385,46 @@ export.probablistic_product.4
     # pi2 are the first and second halves of the product polynomial. This is done in order to reduce
     # the number of powers of tau needed to compute pi(tau).
 
-    # Setup the pointers
-    loc_loadw.0
-    add.256
-    #=> [pi_ptr, zeros_ptr, tau_ptr, 0, X, X, ...]
-
     # Accumulator to compute pi(tau)
-    padw
-    swapdw
-    #=> [X, X, 0, 0, 0, 0, pi_ptr, zeros_ptr, tau_ptr, 0, ...]
+    movup.2 drop movup.2 drop
+    push.0 movdn.2 push.0 movdn.2
+    swapw.2
+    #=> [X, X, 0, 0, tau1, tau0, pi_ptr, ...]
 
-    # Compute pi1(tau)
-    repeat.64
+    # Compute pi(tau)
+    repeat.256
         mem_stream
-        repeat.8
-            exec.deep_queries::combine_main
-        end
+        exec.horner_eval
     end
-    #=> [X, X, ev1, ev0, ev1, ev0, pi_ptr, zeros_ptr, tau_ptr, 0, ...]
-    # where (ev0, ev1) := pi1(tau)
+    #=> [X, X, pi(tau)1, pi(tau)0, tau1, tau0, pi_ptr + 1024, ...]
 
-    # Save pi_1(tau)
-    swapw.2 loc_storew.3
-
-    # Setup the pointers
-    swapw.3 loc_loadw.0 add.384
-
-    # Accumulator to compute pi2(tau)
-    swapw dropw padw
-    swapdw
-
-    # Compute pi2(tau)
-    repeat.64
-        mem_stream
-        repeat.8
-            exec.deep_queries::combine_main
-        end
-    end
-    #=> [X, X, ev1, ev0, ev1, ev0, pi_ptr, zeros_ptr, tau_ptr, 0, ...]
-
-    # Load tau^512
-    swapw.3
-    #=> [pi_ptr, zeros_ptr, tau_ptr, 0, X, ev1, ev0, ev1, ev0, X, ...]
-    dup.2 mem_loadw drop drop
-    #=> [tn1, tn0, X, ev1, ev0, ev1, ev0, X, ...]
-
-    # Compute (a0, a1) := tau^512 * pi2(tau)
-    movup.7 movup.7 ext2mul
-    #=> [a1, a0, X, x, x, X, ...]
-
-    # Compute (res0, res1) := pi(tau)
-    swapw loc_loadw.3 drop drop
-    ext2add
-    #=> [res1, res0, x, x, X, ...]
-
-
-    # 5) Check product
+    ## 5) Check product
 
     ## a) Load h(tau)
-    swapw
     loc_loadw.1
 
     ## b) Load s2(tau)
-    push.0.0
+    swapw
     loc_loadw.2
 
     ## c) compute the product
-    drop drop
+    drop drop 
+    movup.5 movup.5
     ext2mul
+    #=> [res1, res0, X, pi(tau)1, pi(tau)0, tau1, tau0, pi_ptr + 1024, ...]
 
     ## d) assert equality
-    movup.2
+    movup.6
     assert_eq
+    movup.5
     assert_eq
 
     ## e) clean up the stack
-    drop drop
+    dropw
+    #=> [pi_ptr + 1024, ...]
+    drop
     #=> [...]
 end
-
 
 # SQUARE NORM OF Z_q[x]/(phi) POLYNOMIALS
 # =============================================================================================
@@ -454,7 +501,7 @@ export.diff_mod_q
 end
 
 #! Takes a pointer to a polynomial pi of degree less than 1024 with coefficients in Z_Q and
-#! a polynomial c of degree 512 with coefficients also in Z_Q, where Q is the Miden prime.
+#! a polynomial c of degree less than 512 with coefficients also in Z_Q, where Q is the Miden prime.
 #! The goal is to compute s1 = c - pi  = c - h * s2 in Z_q[x]/(phi) where q is the Falcon prime.
 #! The pointer pi_ptr points both to pi and c through the relation c_ptr = pi_ptr + offset
 #! where offset := 1281.
@@ -484,70 +531,64 @@ end
 #! Input: [pi_ptr, ...]
 #! Output: [norm_sq(s1), ...]
 #!
-#! Cycles: 58888
+#! Cycles: 60262
 export.compute_s1_norm_sq
-    repeat.128
-        # 1) Load the next 4 * 3 coefficients
+    add.511
+    repeat.256
+        # 1) Load the next 2 * 3 coefficients
         # load c_i
         padw
-        dup.4 add.1281
+        dup.4 push.256 add
         mem_loadw
+        #=> [0, 0, c1, c0, pi_ptr...]
 
         # load pi_{i+512}
-        padw
-        dup.8 add.128
+        push.0.0
+        dup.6 sub.256
         mem_loadw
+        #=> [0, pi_{i+512}, 0, pi_{i+513}, c1, c0, pi_ptr...]
 
         # load pi_i
-        padw
-        dup.12
+        movup.2 push.0.0
+        dup.8
         mem_loadw
-        #=> [PI, PI_{i+512}, C, pi_ptr, ...]
+        drop swap drop
+        #=> [pi_0, pi_1, pi_{i+512}, pi_{i+513}, c1, c0, pi_ptr...]
 
         # 2) Compute the squared norm of (i + 0)-th coefficient of s1
-        movup.8
-        exec.mod_12289
         movup.5
+        exec.mod_12289
+        #=> [c0, pi_0, pi_1, pi_{i+512}, pi_{i+513}, c1, pi_ptr...]
+        movup.3
+        #=> [pi_{i+512}, c0, pi_0, pi_1, pi_{i+513}, c1, pi_ptr...]
         #=> [v, w, u, ...] where u is the i-th coefficient of `pi`, v is the i-th
         # coefficient of `c` and w is the (512 + i)-th coefficient of `pi` polynomial.
 
         exec.diff_mod_q
-        #=> [e, ...]
+        #=> [e, pi_1, pi_{i+513}, c1, pi_ptr...]
 
         exec.norm_sq
-        #=> [norm(e)^2, ...]
+        #=> [norm(e)^2, pi_1, pi_{i+513}, c1, pi_ptr...]
+        #=> [norm(e)^2, pi_0, pi_{i+512}, c0, pi_ptr, ...]
 
         # Move the result out of the way so that we can process the remaining coefficents
-        movdn.10
+        movdn.4
+        #=> [pi_1, pi_{i+513}, c1, pi_ptr, norm(e)^2, ...]
 
         # 3) Compute the squared norm of (i + 1)-th coefficient of s1
-        movup.6
-        exec.mod_12289
-        movup.4
-        exec.diff_mod_q
-        exec.norm_sq
-        movdn.7
-
-        # 4) Compute the squared norm of (i + 2)-th coefficient of s1
-        movup.4
-        exec.mod_12289
-        movup.3
-        exec.diff_mod_q
-        exec.norm_sq
-        movdn.4
-
-        # 5) Compute the squared norm of (i + 3)-th coefficient of s1
         movup.2
         exec.mod_12289
         movup.2
+        #=> [pi_{i+512}, c0, pi_0, pi_ptr, norm(e)^2, ...]
         exec.diff_mod_q
         exec.norm_sq
         swap
+        #=> [pi_ptr, norm(e`)^2, norm(e)^2, ...]
 
-        # 6) Increment the pointer
-        add.1
+        # 4) Increment the pointer
+        sub.1
     end
-
+    
     # Sum up the squared norm of all the coefficients of s1
     drop    # drop the pointer
     repeat.511
@@ -557,28 +598,33 @@ export.compute_s1_norm_sq
 end
 
 #! Compute the square norm of the polynomial s2 given a pointer to its coefficients.
-#!
 #! Input: [s2_ptr, ...]
 #! Output: [norm_sq(s2), ...]
 #!
-#! Cycles: 13322
+#! Cycles: 14487
 export.compute_s2_norm_sq
-    repeat.128
-        padw
+    padw
+    repeat.256
         dup.4 add.1 swap.5
         mem_loadw
-
-        repeat.4
-            exec.norm_sq
-            movdn.4
-        end
-
+        #=> [0, s1, 0, s0, ptr, ...]
+        movup.3
+        exec.norm_sq
+        movdn.4
+        #=> [0, s0, 0, ptr, normsq(s1), ...]
+        swap
+        exec.norm_sq
+        #=> [normsq(s0), 0, 0, ptr, normsq(s1), ...]
+        movdn.3
+        #=> [0, 0, ptr, normsq(s0), normsq(s1), ...]
+        push.0.0
     end
-    drop
+    dropw drop
     repeat.511
         add
     end
 end
+
 
 
 # FALCON SIGNATURE VERIFICATION ALGORITHM
@@ -592,16 +638,16 @@ end
 #! Input: [PK, MSG, ...]
 #! Output: [...]
 #!
-#! Cycles: ~ 92029
-export.verify.1665
+#! Cycles: ~ 85700
+export.verify.1281
 
     # 1) Generate a Falcon signature using the secret key associated to PK on message MSG.
     adv.push_sig.rpo_falcon512
     #=> [PK, MSG, ...]
 
-    # 2) Load the NONCE from the advice provider. This is encoded as 8 field elements
+    # 2) Load the NONCE from the advice provider. This is encoded as 8 field elements   (Cycles: 10)
     padw adv_loadw padw adv_loadw
-    #=> [PK, MSG, NONCE1, NONCE0, ...]
+    #=> [NONCE1, NONCE0, PK, MSG, ...]
 
     # 3) Load the public key polynomial h and the signature polynomial s2 and the product of
     # the two polynomials pi := h * s2 in Z_Q[x]. This also checks that h hashes to the provided
@@ -612,46 +658,43 @@ export.verify.1665
     swapdw
     locaddr.0
     exec.load_h_s2_and_product
-    #=> [tau1, tau0, tau_ptr, MSG, NONCE1, NONCE1, ...]      (Cycles: 5050)
+    #=> [tau1, tau0, c_ptr, MSG, NONCE1, NONCE1, ...]      (Cycles: 5570)
 
-    exec.powers_of_tau
-    #=> [zeros_ptr, MSG, NONCE1, NONCE1, ...]                (Cycles: 8323)
-
-    exec.set_to_zero
-    #=> [c_ptr, MSG, NONCE1, NONCE1, ...]                    (Cycles: 2607)
+    # store tau
+    loc_storew.1280
+    drop drop
 
     # 4) Compute the hash-to-point of the message MSG from the provided NONCE and save
     # the resulting polynomial c in the memory region [c_ptr, c_ptr + 128)
 
     exec.hash_to_point
-    #=> [...]                                       (Cycles: 1327)
+    #=> [...]                                       (Cycles: 4258)
 
     # 5) Check that we indeed have pi := h * s2 in Z_Q[x] by checking that pi(tau) = h(tau) * s2(tau)
     # where tau is a random (Fiat-Shamir) challenge resulting from hashing h, s2 and pi.
 
-    locaddr.512     # tau_ptr
-    locaddr.1025    # z_ptr
+    padw loc_loadw.1280 movup.2 drop movup.2 drop
     locaddr.0       # h ptr
-    #=> [h_ptr, zeros_ptr, tau_ptr, ...]
+    #=> [h_ptr, tau1, tau0, ...]
 
     exec.probablistic_product
-    #=> [...]                                       (Cycles: 2504)
+    #=> [...]                                       (Cycles: 1178)
 
     # 6) Compute the squared norm of s1 := c - h * s2 (in Z_q[x]/(phi))
 
-    locaddr.256
+    locaddr.512
     #=> [pi_ptr, ...]
 
     exec.compute_s1_norm_sq
-    #=> [norm_sq(s1), ...]                          (Cycles: 58888)
+    #=> [norm_sq(s1), ...]                          (Cycles: 60264)
 
     # 7) Compute the squared norm of s2
 
-    locaddr.128
+    locaddr.256
     #=> [s2_ptr, norm_sq(s1), ...]
 
     exec.compute_s2_norm_sq
-    #=> [norm_sq(s2), norm_sq(s1), ...]             (Cycles: 13322)
+    #=> [norm_sq(s2), norm_sq(s1), ...]             (Cycles: 14487)
 
     # 8) Check that ||(s1, s2)||^2 < K
 
