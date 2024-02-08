@@ -1,4 +1,5 @@
 #![cfg_attr(not(feature = "std"), no_std)]
+extern crate alloc;
 
 #[cfg(not(feature = "std"))]
 #[macro_use]
@@ -49,6 +50,8 @@ pub use host::{
     },
     DefaultHost, Host, HostResponse,
 };
+
+mod gkr;
 
 mod chiplets;
 use chiplets::Chiplets;
