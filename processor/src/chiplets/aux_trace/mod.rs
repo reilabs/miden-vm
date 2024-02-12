@@ -136,7 +136,6 @@ impl<E: FieldElement<BaseField = Felt>> AuxColumnBuilder<E> for BusColumnBuilder
             debug_assert_eq!(selector0, ONE);
             debug_assert_eq!(selector1, ONE);
             debug_assert_eq!(selector2, ONE);
-            debug_assert_eq!(selector3, ONE);
             E::ONE
         }
     }
