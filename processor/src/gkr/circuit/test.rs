@@ -391,6 +391,7 @@ where
     }
 }
 
+/// For padding to the next power of 2.
 #[derive(Default)]
 pub struct ZeroNumerator<E>
 where
@@ -416,6 +417,7 @@ where
     }
 }
 
+/// For padding to the next power of 2.
 #[derive(Default)]
 pub struct OneDenominator<E>
 where
