@@ -5,7 +5,9 @@ use alloc::sync::Arc;
 use vm_core::{Felt, FieldElement};
 
 mod prover;
+pub use prover::prove_virtual_bus as prove_v_bus_;
 mod verifier;
+pub use verifier::verify_virtual_bus as verify_v_bus_;
 
 #[cfg(test)]
 mod test;

@@ -1,4 +1,4 @@
-use super::{FinalEvaluationClaim_, PartialProof};
+use super::{FinalEvaluationClaim, PartialProof};
 use crate::gkr::utils::{barycentric_weights, evaluate_barycentric};
 use vm_core::{Felt, FieldElement};
 use winter_prover::crypto::{ElementHasher, RandomCoin};
@@ -12,7 +12,7 @@ pub fn sum_check_verify<
     degree: usize,
     round_proofs: PartialProof<E>,
     coin: &mut C,
-) -> FinalEvaluationClaim_<E> {
+) -> FinalEvaluationClaim<E> {
     let points: Vec<E> = (0..degree + 1).map(|x| E::from(x as u8)).collect();
     let mut claimed_evaluation = claim;
     let mut evaluation_point = vec![];
@@ -29,7 +29,7 @@ pub fn sum_check_verify<
         claimed_evaluation = evaluate_barycentric(&point_evals, r, &weights);
         evaluation_point.push(r);
     }
-    FinalEvaluationClaim_ {
+    FinalEvaluationClaim {
         evaluation_point,
         claimed_evaluation,
     }

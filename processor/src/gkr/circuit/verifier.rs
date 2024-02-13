@@ -3,7 +3,7 @@ use vm_core::{Felt, FieldElement};
 use winter_prover::crypto::{ElementHasher, RandomCoin};
 
 use crate::gkr::sumcheck::{
-    sum_check_verify, FinalEvaluationClaim_, PartialProof as SumCheckFullProof,
+    sum_check_verify, FinalEvaluationClaim, PartialProof as SumCheckFullProof,
 };
 
 use crate::gkr::multivariate::{
@@ -12,66 +12,6 @@ use crate::gkr::multivariate::{
 use crate::gkr::sumcheck::PartialProof as SumcheckInstanceProof;
 
 use super::{CircuitProof, GkrFinalEvaluationClaim};
-
-/// Checks the validity of a `LayerProof`.
-///
-/// It first reduces the 2 claims to 1 claim using randomness and then checks that the sumcheck
-/// protocol was correctly executed.
-///
-/// The method outputs:
-///
-/// 1. A vector containing the randomness sent by the verifier throughout the course of the
-/// sum-check protocol.
-/// 2. The (claimed) evaluation of the inner polynomial (i.e., the one being summed) at the this random vector.
-/// 3. The random value used in the 2-to-1 reduction of the 2 sumchecks.  
-pub fn verify_sum_check_proof<
-    E: FieldElement<BaseField = Felt> + 'static,
-    C: RandomCoin<Hasher = H, BaseField = Felt>,
-    H: ElementHasher<BaseField = Felt>,
->(
-    proof: &SumcheckInstanceProof<E>,
-    num_rounds_pre_switch: usize,
-    max_degree_post_switch: usize,
-    claim: (E, E),
-    transcript: &mut C,
-) -> (FinalEvaluationClaim_<E>, E) {
-    // Absorb the claims
-    let data = vec![claim.0, claim.1];
-    transcript.reseed(H::hash_elements(&data));
-
-    // Squeeze challenge to reduce two sumchecks to one
-    let r_sum_check: E = transcript.draw().unwrap();
-
-    // Run the sumcheck protocol
-
-    // Given r_sum_check and claim, we create a Claim with the GKR composer and then call the generic sum-check verifier
-    let reduced_claim = claim.0 + claim.1 * r_sum_check;
-
-    let mut eval_point = vec![];
-
-    let reduced_gkr_claim = if num_rounds_pre_switch > 0 {
-        let (proof_pre, proof_post) = proof.split_at(num_rounds_pre_switch);
-        let FinalEvaluationClaim_ {
-            evaluation_point,
-            claimed_evaluation,
-        } = sum_check_verify(reduced_claim, 3, proof_pre.clone(), transcript);
-        eval_point.extend_from_slice(&evaluation_point);
-        let FinalEvaluationClaim_ {
-            evaluation_point,
-            claimed_evaluation,
-        } = sum_check_verify(claimed_evaluation, max_degree_post_switch, proof_post, transcript);
-        eval_point.extend_from_slice(&evaluation_point);
-
-        FinalEvaluationClaim_ {
-            evaluation_point: eval_point,
-            claimed_evaluation,
-        }
-    } else {
-        sum_check_verify(reduced_claim, 3, proof.clone(), transcript)
-    };
-
-    (reduced_gkr_claim, r_sum_check)
-}
 
 pub fn verify_virtual_bus<
     E: FieldElement<BaseField = Felt> + 'static,
@@ -117,7 +57,7 @@ pub fn verify_virtual_bus<
     rand.push(r_cord);
     for (_num_rounds, i) in (0..num_layers).enumerate() {
         let (
-            FinalEvaluationClaim_ {
+            FinalEvaluationClaim {
                 evaluation_point: rand_sumcheck,
                 claimed_evaluation: claim_last,
             },
@@ -165,7 +105,7 @@ pub fn verify_virtual_bus<
 
     // II) Verify the final GKR layer counting backwards.
     let (
-        FinalEvaluationClaim_ {
+        FinalEvaluationClaim {
             evaluation_point: eval_point,
             claimed_evaluation,
         },
@@ -198,4 +138,64 @@ pub fn verify_virtual_bus<
 
     // IV) Pass the claimed openings for verification by the STARK
     gkr_final_eval_claim
+}
+
+/// Checks the validity of a `SumcheckInstanceProof`.
+///
+/// It first reduces the 2 claims to 1 claim using randomness and then checks that the sumcheck
+/// protocol was correctly executed.
+///
+/// The method outputs:
+///
+/// 1. A vector containing the randomness sent by the verifier throughout the course of the
+/// sum-check protocol.
+/// 2. The (claimed) evaluation of the inner polynomial (i.e., the one being summed) at the this random vector.
+/// 3. The random value used in the 2-to-1 reduction of the 2 sumchecks.  
+pub fn verify_sum_check_proof<
+    E: FieldElement<BaseField = Felt> + 'static,
+    C: RandomCoin<Hasher = H, BaseField = Felt>,
+    H: ElementHasher<BaseField = Felt>,
+>(
+    proof: &SumcheckInstanceProof<E>,
+    num_rounds_pre_switch: usize,
+    max_degree_post_switch: usize,
+    claim: (E, E),
+    transcript: &mut C,
+) -> (FinalEvaluationClaim<E>, E) {
+    // Absorb the claims
+    let data = vec![claim.0, claim.1];
+    transcript.reseed(H::hash_elements(&data));
+
+    // Squeeze challenge to reduce two sumchecks to one
+    let r_sum_check: E = transcript.draw().unwrap();
+
+    // Run the sumcheck protocol
+
+    // Given r_sum_check and claim, we create a Claim with the GKR composer and then call the generic sum-check verifier
+    let reduced_claim = claim.0 + claim.1 * r_sum_check;
+
+    let mut eval_point = vec![];
+
+    let reduced_gkr_claim = if num_rounds_pre_switch > 0 {
+        let (proof_pre, proof_post) = proof.split_at(num_rounds_pre_switch);
+        let FinalEvaluationClaim {
+            evaluation_point,
+            claimed_evaluation,
+        } = sum_check_verify(reduced_claim, 3, proof_pre.clone(), transcript);
+        eval_point.extend_from_slice(&evaluation_point);
+        let FinalEvaluationClaim {
+            evaluation_point,
+            claimed_evaluation,
+        } = sum_check_verify(claimed_evaluation, max_degree_post_switch, proof_post, transcript);
+        eval_point.extend_from_slice(&evaluation_point);
+
+        FinalEvaluationClaim {
+            evaluation_point: eval_point,
+            claimed_evaluation,
+        }
+    } else {
+        sum_check_verify(reduced_claim, 3, proof.clone(), transcript)
+    };
+
+    (reduced_gkr_claim, r_sum_check)
 }

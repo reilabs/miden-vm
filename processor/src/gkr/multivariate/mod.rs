@@ -1,4 +1,5 @@
 use alloc::sync::Arc;
+use miden_air::trace::TRACE_WIDTH;
 use core::ops::Index;
 use vm_core::{Felt, FieldElement, StarkField};
 use winter_prover::math::log2;
@@ -166,7 +167,7 @@ pub fn gkr_merge_composition_from_composition_polys<E: FieldElement<BaseField = 
     merge_randomness: Vec<E>,
     num_variables: usize,
 ) -> GkrCompositionMerge<E> {
-    let eq_composer = Arc::new(ProjectionComposition::new(70));
+    let eq_composer = Arc::new(ProjectionComposition::new(TRACE_WIDTH));
     let left_numerator = composition_polys[0].to_owned();
     let right_numerator = composition_polys[1].to_owned();
     let left_denominator = composition_polys[2].to_owned();

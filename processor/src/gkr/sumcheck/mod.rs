@@ -58,7 +58,7 @@ impl<E: FieldElement<BaseField = Felt> + 'static> PartialProof<E> {
 }
 
 #[derive(Clone)]
-pub struct FinalEvaluationClaim_<E: FieldElement> {
+pub struct FinalEvaluationClaim<E: FieldElement> {
     pub evaluation_point: Vec<E>,
     pub claimed_evaluation: E,
 }
