@@ -5,9 +5,9 @@ use vm_core::FieldElement;
 mod domain;
 
 mod prover;
-pub use prover::SumCheckProver;
+pub use prover::{FinalClaimBuilder, SumCheckProver};
 mod verifier;
-pub use verifier::SumCheckVerifier;
+pub use verifier::{FinalQueryBuilder, SumCheckVerifier};
 
 /// A sum-check round proof.
 ///
@@ -85,8 +85,8 @@ pub fn reduce_claim<E: FieldElement>(
 /// further interaction with the Prover or using a polynomial commitment opening proof in
 /// the compiled protocol.
 #[derive(Clone, Debug)]
-pub struct FinalOpeningClaim<E: FieldElement> {
-    pub evaluation_point: Vec<E>,
+pub struct FinalOpeningClaim<E> {
+    pub eval_point: Vec<E>,
     pub openings: Vec<E>,
 }
 
@@ -100,6 +100,7 @@ mod test {
         verifier::{CompositionPolyQueryBuilder, SumCheckVerifier},
     };
     use crate::trace::virtual_bus::multilinear::{CompositionPolynomial, MultiLinearPoly};
+    use crate::trace::virtual_bus::multilinear::{CompositionPolynomial, MultiLinear};
     use alloc::{borrow::ToOwned, vec::Vec};
     use test_utils::rand::{rand_array, rand_value, rand_vector};
     use vm_core::{crypto::random::RpoRandomCoin, Felt, FieldElement, Word, ONE, ZERO};
@@ -216,7 +217,7 @@ mod test {
             evaluation_point: &[Self::Field],
         ) -> super::FinalOpeningClaim<Self::Field> {
             super::FinalOpeningClaim {
-                evaluation_point: evaluation_point.to_owned(),
+                eval_point: evaluation_point.to_owned(),
                 openings,
             }
         }
