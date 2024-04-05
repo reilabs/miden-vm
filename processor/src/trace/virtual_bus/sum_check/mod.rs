@@ -7,7 +7,7 @@ mod domain;
 mod prover;
 pub use prover::{FinalClaimBuilder, SumCheckProver};
 mod verifier;
-pub use verifier::{FinalQueryBuilder, SumCheckVerifier};
+pub use verifier::{CompositionPolyQueryBuilder, SumCheckVerifier};
 
 /// A sum-check round proof.
 ///
@@ -100,7 +100,6 @@ mod test {
         verifier::{CompositionPolyQueryBuilder, SumCheckVerifier},
     };
     use crate::trace::virtual_bus::multilinear::{CompositionPolynomial, MultiLinearPoly};
-    use crate::trace::virtual_bus::multilinear::{CompositionPolynomial, MultiLinear};
     use alloc::{borrow::ToOwned, vec::Vec};
     use test_utils::rand::{rand_array, rand_value, rand_vector};
     use vm_core::{crypto::random::RpoRandomCoin, Felt, FieldElement, Word, ONE, ZERO};
