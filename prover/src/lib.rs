@@ -8,7 +8,9 @@ extern crate std;
 
 use air::{ProcessorAir, PublicInputs};
 use core::marker::PhantomData;
-#[cfg(all(feature = "metal", target_arch = "aarch64", target_os = "macos"))]
+#[cfg(all(feature = "metal", target_arch = "aarch64"))]
+use miden_gpu::HashFn;
+
 use miden_gpu::HashFn;
 use processor::{
     crypto::{
@@ -32,7 +34,7 @@ mod gpu;
 // EXPORTS
 // ================================================================================================
 
-pub use air::{DeserializationError, ExecutionProof, FieldExtension, HashFunction, ProvingOptions};
+pub use air::{ExecutionProof, FieldExtension, HashFunction, ProvingOptions};
 pub use processor::{
     crypto, math, utils, AdviceInputs, Digest, ExecutionError, Host, InputError, MemAdviceProvider,
     Program, StackInputs, StackOutputs, Word,
@@ -101,6 +103,8 @@ where
             );
             #[cfg(all(feature = "metal", target_arch = "aarch64", target_os = "macos"))]
             let prover = gpu::metal::MetalExecutionProver::new(prover, HashFn::Rpo256);
+            #[cfg(all(feature = "cuda", target_arch = "x86_64"))]
+            let prover = gpu::cuda::CudaExecutionProver::new(prover, HashFn::Rpo256);
             prover.prove(trace)
         }
         HashFunction::Rpx256 => {
@@ -111,6 +115,8 @@ where
             );
             #[cfg(all(feature = "metal", target_arch = "aarch64", target_os = "macos"))]
             let prover = gpu::metal::MetalExecutionProver::new(prover, HashFn::Rpx256);
+            #[cfg(all(feature = "cuda", target_arch = "x86_64"))]
+            let prover = gpu::cuda::CudaExecutionProver::new(prover, HashFn::Rpx256);
             prover.prove(trace)
         }
     }

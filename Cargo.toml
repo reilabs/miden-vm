@@ -26,3 +26,5 @@ overflow-checks = true
 [patch.crates-io]
 thiserror = { git = "https://github.com/bitwalker/thiserror", branch = "no-std" }
 miette = { git = "https://github.com/bitwalker/miette", branch = "no-std" }
+winter-math = { package = "winter-math", git = "https://github.com/TheMenko/winterfell", branch = "ver8.3" }
+winter-prover = { package = "winter-prover", git = "https://github.com/TheMenko/winterfell", branch = "ver8.3" }
