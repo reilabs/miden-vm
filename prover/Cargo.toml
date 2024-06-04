@@ -16,6 +16,7 @@ rust-version = "1.75"
 concurrent = ["processor/concurrent", "std", "winter-prover/concurrent"]
 default = ["std"]
 metal = ["dep:miden-gpu", "dep:elsa", "dep:pollster", "concurrent", "std"]
+cuda = ["dep:miden-gpu", "std"]
 std = ["air/std", "processor/std", "winter-prover/std"]
 
 [dependencies]
@@ -23,8 +24,12 @@ air = { package = "miden-air", path = "../air", version = "0.8", default-feature
 processor = { package = "miden-processor", path = "../processor", version = "0.8", default-features = false }
 tracing = { version = "0.1", default-features = false, features = ["attributes"] }
 winter-prover = { package = "winter-prover", version = "0.9", default-features = false }
+winter-air = { package = "winter-air", version = "0.9", default-features = false }
+miden-gpu = { version = "0.2", path = "../../miden-gpu", optional = true }
+
+[dev-dependencies]
+criterion = { version = "0.5.1", features = ["html_reports"] }
 
 [target.'cfg(all(target_arch = "aarch64", target_os = "macos"))'.dependencies]
 elsa = { version = "1.9", optional = true }
-miden-gpu = { version = "0.1", optional = true }
 pollster = { version = "0.3", optional = true }

@@ -376,7 +376,7 @@ impl<
     /// from the commitment root to these rows.
     fn query(&self, positions: &[usize]) -> Vec<Queries> {
         // build queries for the main trace segment
-        let mut result = vec![build_segment_queries(
+        let mut result = vec![super::build_segment_queries(
             &self.main_segment_lde,
             &self.main_segment_tree,
             positions,
@@ -385,7 +385,7 @@ impl<
         // build queries for auxiliary trace segments
         for (i, segment_tree) in self.aux_segment_trees.iter().enumerate() {
             let segment_lde = &self.aux_segment_ldes[i];
-            result.push(build_segment_queries(segment_lde, segment_tree, positions));
+            result.push(super::build_segment_queries(segment_lde, segment_tree, positions));
         }
 
         result
@@ -579,27 +579,6 @@ where
         self.poly_offset += N;
         Some(segment)
     }
-}
-
-fn build_segment_queries<
-    E: FieldElement<BaseField = Felt>,
-    H: Hasher + ElementHasher<BaseField = E::BaseField>,
->(
-    segment_lde: &RowMatrix<E>,
-    segment_tree: &MerkleTree<H>,
-    positions: &[usize],
-) -> Queries {
-    // for each position, get the corresponding row from the trace segment LDE and put all these
-    // rows into a single vector
-    let trace_states =
-        positions.iter().map(|&pos| segment_lde.row(pos).to_vec()).collect::<Vec<_>>();
-
-    // build Merkle authentication paths to the leaves specified by positions
-    let trace_proof = segment_tree
-        .prove_batch(positions)
-        .expect("failed to generate a Merkle proof for trace queries");
-
-    Queries::new(trace_proof, trace_states)
 }
 
 struct SegmentIterator<'a, 'b, E, I, const N: usize>(&'b mut SegmentGenerator<'a, E, I, N>)

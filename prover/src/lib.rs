@@ -8,8 +8,12 @@ extern crate std;
 
 use air::{AuxRandElements, ProcessorAir, PublicInputs};
 use core::marker::PhantomData;
-#[cfg(all(feature = "metal", target_arch = "aarch64", target_os = "macos"))]
+#[cfg(all(feature = "metal", target_arch = "aarch64"))]
 use miden_gpu::HashFn;
+
+#[cfg(all(feature = "cuda"))]
+use miden_gpu::HashFn;
+
 use processor::{
     crypto::{
         Blake3_192, Blake3_256, ElementHasher, RandomCoin, Rpo256, RpoRandomCoin, Rpx256,
@@ -32,7 +36,7 @@ mod gpu;
 // EXPORTS
 // ================================================================================================
 
-pub use air::{DeserializationError, ExecutionProof, FieldExtension, HashFunction, ProvingOptions};
+pub use air::{ExecutionProof, FieldExtension, HashFunction, ProvingOptions};
 pub use processor::{
     crypto, math, utils, AdviceInputs, Digest, ExecutionError, Host, InputError, MemAdviceProvider,
     Program, StackInputs, StackOutputs, Word,
@@ -101,6 +105,8 @@ where
             );
             #[cfg(all(feature = "metal", target_arch = "aarch64", target_os = "macos"))]
             let prover = gpu::metal::MetalExecutionProver::new(prover, HashFn::Rpo256);
+            #[cfg(all(feature = "cuda", target_arch = "x86_64"))]
+            let prover = gpu::cuda::CudaExecutionProver::new(prover, HashFn::Rpo256);
             prover.prove(trace)
         }
         HashFunction::Rpx256 => {
@@ -111,6 +117,8 @@ where
             );
             #[cfg(all(feature = "metal", target_arch = "aarch64", target_os = "macos"))]
             let prover = gpu::metal::MetalExecutionProver::new(prover, HashFn::Rpx256);
+            #[cfg(all(feature = "cuda", target_arch = "x86_64"))]
+            let prover = gpu::cuda::CudaExecutionProver::new(prover, HashFn::Rpx256);
             prover.prove(trace)
         }
     }
@@ -188,10 +196,6 @@ where
     type ConstraintEvaluator<'a, E: FieldElement<BaseField = Felt>> =
         DefaultConstraintEvaluator<'a, ProcessorAir, E>;
 
-    fn options(&self) -> &WinterProofOptions {
-        &self.options
-    }
-
     fn get_pub_inputs(&self, trace: &ExecutionTrace) -> PublicInputs {
         // ensure inputs and outputs are consistent with the execution trace.
         debug_assert!(
@@ -205,6 +209,10 @@ where
 
         let program_info = trace.program_info().clone();
         PublicInputs::new(program_info, self.stack_inputs.clone(), self.stack_outputs.clone())
+    }
+
+    fn options(&self) -> &WinterProofOptions {
+        &self.options
     }
 
     fn new_trace_lde<E: FieldElement<BaseField = Felt>>(
