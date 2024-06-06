@@ -1,0 +1,38 @@
+
+cuda rpx/CudaRpxConstraint/12
+                        time:   [48.905 ms 48.937 ms 48.966 ms]
+                        change: [+1.4329% +1.5804% +1.7312%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 3 outliers among 10 measurements (30.00%)
+  1 (10.00%) low mild
+  1 (10.00%) high mild
+  1 (10.00%) high severe
+Benchmarking cuda rpx/CudaRpxConstraint/18: Warming up for 3.0000 s
+Warning: Unable to complete 10 samples in 5.0s. You may wish to increase target time to 32.3s.
+cuda rpx/CudaRpxConstraint/18
+                        time:   [3.2167 s 3.2199 s 3.2221 s]
+                        change: [-0.1368% +0.0071% +0.1398%] (p = 0.92 > 0.05)
+                        No change in performance detected.
+Found 1 outliers among 10 measurements (10.00%)
+  1 (10.00%) low severe
+Benchmarking cuda rpx/CudaRpxConstraint/20: Warming up for 3.0000 s
+Warning: Unable to complete 10 samples in 5.0s. You may wish to increase target time to 131.2s.
+cuda rpx/CudaRpxConstraint/20
+                        time:   [13.071 s 13.080 s 13.088 s]
+
+Benchmarking cpu rpo/CpuRpoConstraint/12: Warming up for 3.0000 s
+Warning: Unable to complete 10 samples in 5.0s. You may wish to increase target time to 5.7s.
+cpu rpo/CpuRpoConstraint/12
+                        time:   [567.88 ms 567.95 ms 568.03 ms]
+                        change: [-0.5894% -0.5638% -0.5381%] (p = 0.00 < 0.05)
+                        Change within noise threshold.
+Found 1 outliers among 10 measurements (10.00%)
+  1 (10.00%) high mild
+Benchmarking cpu rpo/CpuRpoConstraint/18: Warming up for 3.0000 s
+Warning: Unable to complete 10 samples in 5.0s. You may wish to increase target time to 371.3s.
+cpu rpo/CpuRpoConstraint/18
+                        time:   [37.095 s 37.100 s 37.105 s]
+Benchmarking cpu rpo/CpuRpoConstraint/20: Warming up for 3.0000 s
+Warning: Unable to complete 10 samples in 5.0s. You may wish to increase target time to 1493.5s.
+Benchmarking cpu rpo/CpuRpoConstraint/20: Collecting 10 samples in estimated 1493.5 s (10 iterations)^C
+ubuntu@ip-172-31-24-142:~/miden-vm/prover$

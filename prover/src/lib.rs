@@ -31,7 +31,7 @@ use winter_prover::{
 
 #[cfg(feature = "std")]
 use {std::time::Instant, winter_prover::Trace};
-mod gpu;
+pub mod gpu;
 
 // EXPORTS
 // ================================================================================================
@@ -131,7 +131,7 @@ where
 // PROVER
 // ================================================================================================
 
-struct ExecutionProver<H, R>
+pub struct ExecutionProver<H, R>
 where
     H: ElementHasher<BaseField = Felt>,
     R: RandomCoin<BaseField = Felt, Hasher = H>,

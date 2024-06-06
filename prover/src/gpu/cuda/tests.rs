@@ -5,10 +5,10 @@ use gpu::cuda::{CudaExecutionProver, DIGEST_SIZE, RATE};
 use processor::{
     crypto::{Hasher, RpoDigest, RpoRandomCoin, Rpx256, RpxDigest, RpxRandomCoin},
     math::fft,
-    StackInputs, StackOutputs,
 };
-use std::{assert_eq, matches, vec, assert_ne};
+use std::{assert_eq, matches, assert_ne};
 use winter_prover::{crypto::Digest, math::fields::CubeExtension, CompositionPolyTrace, TraceLde};
+use crate::gpu::tests::{create_test_prover, gen_random_trace, get_random_values, get_trace_info};
 
 type CubeFelt = CubeExtension<Felt>;
 
@@ -190,37 +190,4 @@ fn rpx_build_constraint_commitment_on_gpu_without_padding_matches_cpu() {
         Rpx256,
         RpxDigest,
     >(HashFn::Rpx256);
-}
-
-fn gen_random_trace(num_rows: usize, num_cols: usize) -> ColMatrix<Felt> {
-    ColMatrix::new((0..num_cols as u64).map(|col| vec![Felt::new(col); num_rows]).collect())
-}
-
-pub(crate) fn get_random_values<E: FieldElement>(num_rows: usize) -> Vec<E> {
-    (0..num_rows).map(|i| E::from(i as u32)).collect()
-}
-
-fn get_trace_info(num_cols: usize, num_rows: usize) -> TraceInfo {
-    TraceInfo::new(num_cols, num_rows)
-}
-
-pub fn create_test_prover<
-    R: RandomCoin<BaseField = Felt, Hasher = H>,
-    H: ElementHasher<BaseField = Felt>,
->(
-    use_rpx: bool,
-) -> ExecutionProver<H, R> {
-    if use_rpx {
-        ExecutionProver::new(
-            ProvingOptions::with_128_bit_security_rpx(),
-            StackInputs::default(),
-            StackOutputs::default(),
-        )
-    } else {
-        ExecutionProver::new(
-            ProvingOptions::with_128_bit_security(true),
-            StackInputs::default(),
-            StackOutputs::default(),
-        )
-    }
 }

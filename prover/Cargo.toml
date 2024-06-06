@@ -12,6 +12,16 @@ keywords = ["miden", "prover", "stark", "zkp"]
 edition = "2021"
 rust-version = "1.75"
 
+#[[bench]]
+#name = "build_constraints"
+#path = "benches/constraints.rs"
+#harness = false
+
+[[bench]]
+name = "build_traces"
+path = "benches/trace_commit.rs"
+harness = false
+
 [features]
 concurrent = ["processor/concurrent", "std", "winter-prover/concurrent"]
 default = ["std"]
