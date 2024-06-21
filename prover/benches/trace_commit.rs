@@ -17,7 +17,9 @@ use miden_prover::{ExecutionProver, StackInputs, StackOutputs};
 #[cfg(all(feature = "metal", target_arch = "aarch64", target_os = "macos"))]
 use crate::gpu::metal::MetalExecutionProver;
 
-const BENCHMARK_INPUT_SIZES: [usize; 3] = [12, 16, 18];
+// Random trace is built from RATE columns with 1 << 17,18,19,20 rows,
+// making the full trace length equal to 1 << 20,21,22,23
+const BENCHMARK_INPUT_SIZES: [usize; 4] = [17,18,19,20];
 const CE_BLOWUP: usize = 8;
 
 const RATE: usize = Rpo256::RATE_RANGE.end - Rpo256::RATE_RANGE.start;
@@ -74,7 +76,7 @@ pub fn cuda_bench_trace_rpo(c: &mut Criterion) {
         let trace_info = get_trace_info(1, num_rows);
         let trace = gen_random_trace(num_rows, RATE);
 
-        group.bench_function(BenchmarkId::new("CudaRpoTrace", input_size), |b| {
+        group.bench_function(BenchmarkId::new("CudaRpoTrace", input_size + 3), |b| {
             b.iter(|| {
                     prover.new_trace_lde::<CubeFelt>(&trace_info,&trace, &domain);
                 },
@@ -102,7 +104,7 @@ pub fn cuda_bench_trace_rpx(c: &mut Criterion) {
         let trace_info = get_trace_info(1, num_rows);
         let trace = gen_random_trace(num_rows, RATE);
 
-        group.bench_function(BenchmarkId::new("CudaRpxTrace", input_size), |b| {
+        group.bench_function(BenchmarkId::new("CudaRpxTrace", input_size + 3), |b| {
             b.iter(|| {
                     prover.new_trace_lde::<CubeFelt>(&trace_info, &trace, &domain);
                 }
@@ -129,7 +131,7 @@ pub fn cpu_bench_trace_rpo(c: &mut Criterion) {
         let trace_info = get_trace_info(1, num_rows);
         let trace = gen_random_trace(num_rows, RATE);
 
-        group.bench_function(BenchmarkId::new("CpuRpoTrace", input_size), |b| {
+        group.bench_function(BenchmarkId::new("CpuRpoTrace", input_size + 3), |b| {
             b.iter(|| {
                     prover.new_trace_lde::<CubeFelt>(&trace_info, &trace, &domain);
                 }
@@ -155,7 +157,7 @@ pub fn cpu_bench_trace_rpx(c: &mut Criterion) {
         let trace_info = get_trace_info(1, num_rows);
         let trace = gen_random_trace(num_rows, RATE);
 
-        group.bench_function(BenchmarkId::new("CpuRpxTrace", input_size), |b| {
+        group.bench_function(BenchmarkId::new("CpuRpxTrace", input_size + 3), |b| {
             b.iter(|| {
                     prover.new_trace_lde::<CubeFelt>(&trace_info, &trace, &domain);
                 }
@@ -169,7 +171,5 @@ pub fn cpu_bench_trace_rpx(c: &mut Criterion) {
 criterion_group!(cuda_bench,
     cuda_bench_trace_rpo,
     cuda_bench_trace_rpx,
-    cpu_bench_trace_rpo,
-    cpu_bench_trace_rpx
 );
 criterion_main!(cuda_bench);

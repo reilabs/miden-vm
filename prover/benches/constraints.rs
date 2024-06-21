@@ -15,7 +15,8 @@ use miden_prover::{ExecutionProver, StackInputs, StackOutputs};
 #[cfg(all(feature = "metal", target_arch = "aarch64", target_os = "macos"))]
 use crate::gpu::metal::MetalExecutionProver;
 
-const BENCHMARK_INPUT_SIZES: [usize; 3] = [12, 16, 18];
+// This will be multiplied be CE_BLOWUP, so we get 1 << 20,21,22,23 values
+const BENCHMARK_INPUT_SIZES: [usize; 4] = [17,18,19,20];
 const CE_BLOWUP: usize = 8;
 
 type CubeFelt = CubeExtension<Felt>;
@@ -57,16 +58,15 @@ pub fn get_random_values<E: FieldElement>(num_rows: usize) -> Vec<E> {
         for n in BENCHMARK_INPUT_SIZES {
             let input_size = n;
             let num_rows = 1 << input_size;
-            let ce_blowup_factor = CE_BLOWUP;
 
-            let values = get_random_values::<CubeFelt>(num_rows * ce_blowup_factor);
-            let domain = StarkDomain::from_twiddles(fft::get_twiddles(num_rows), ce_blowup_factor, Felt::GENERATOR);
+            let values = get_random_values::<CubeFelt>(num_rows * CE_BLOWUP);
+            let domain = StarkDomain::from_twiddles(fft::get_twiddles(num_rows), CE_BLOWUP, Felt::GENERATOR);
 
-            group.bench_function(BenchmarkId::new("CudaRpoConstraint", input_size), |b| {
+            group.bench_function(BenchmarkId::new("CudaRpoConstraint", input_size + 3), |b| {
                 b.iter_batched(
                     || CompositionPolyTrace::new(values.clone()),
                     |poly_trace| {
-                        prover.build_constraint_commitment(poly_trace, 8, &domain);
+                        prover.build_constraint_commitment(poly_trace, 72, &domain);
                     },
                     BatchSize::SmallInput,
                 )
@@ -86,16 +86,15 @@ pub fn get_random_values<E: FieldElement>(num_rows: usize) -> Vec<E> {
             for n in BENCHMARK_INPUT_SIZES {
                 let input_size = n;
                 let num_rows = 1 << input_size;
-                let ce_blowup_factor = CE_BLOWUP;
 
-                let values = get_random_values::<CubeFelt>(num_rows * ce_blowup_factor);
-                let domain = StarkDomain::from_twiddles(fft::get_twiddles(num_rows), ce_blowup_factor, Felt::GENERATOR);
+                let values = get_random_values::<CubeFelt>(num_rows * CE_BLOWUP);
+                let domain = StarkDomain::from_twiddles(fft::get_twiddles(num_rows), CE_BLOWUP, Felt::GENERATOR);
 
-                group.bench_function(BenchmarkId::new("CudaRpxConstraint", input_size), |b| {
+                group.bench_function(BenchmarkId::new("CudaRpxConstraint", input_size + 3), |b| {
                     b.iter_batched(
                         || CompositionPolyTrace::new(values.clone()),
                         |poly_trace| {
-                            prover.build_constraint_commitment(poly_trace, 8, &domain);
+                            prover.build_constraint_commitment(poly_trace, 72, &domain);
                         },
                         BatchSize::SmallInput,
                     )
@@ -119,11 +118,11 @@ pub fn get_random_values<E: FieldElement>(num_rows: usize) -> Vec<E> {
             let values = get_random_values::<CubeFelt>(num_rows * CE_BLOWUP);
             let domain = StarkDomain::from_twiddles(fft::get_twiddles(num_rows), CE_BLOWUP, Felt::GENERATOR);
 
-            group.bench_function(BenchmarkId::new("CpuRpoConstraint", input_size), |b| {
+            group.bench_function(BenchmarkId::new("CpuRpoConstraint", input_size + 3), |b| {
                 b.iter_batched(
                     || CompositionPolyTrace::new(values.clone()),
                     |poly_trace| {
-                        prover.build_constraint_commitment(poly_trace, 8, &domain);
+                        prover.build_constraint_commitment(poly_trace, 72, &domain);
                     },
                     BatchSize::SmallInput,
                 )
@@ -146,11 +145,11 @@ pub fn get_random_values<E: FieldElement>(num_rows: usize) -> Vec<E> {
             let values = get_random_values::<CubeFelt>(num_rows * CE_BLOWUP);
             let domain = StarkDomain::from_twiddles(fft::get_twiddles(num_rows), CE_BLOWUP, Felt::GENERATOR);
 
-            group.bench_function(BenchmarkId::new("CpuRpxConstraint", input_size), |b| {
+            group.bench_function(BenchmarkId::new("CpuRpxConstraint", input_size + 3), |b| {
                 b.iter_batched(
                     || CompositionPolyTrace::new(values.clone()),
                     |poly_trace| {
-                        prover.build_constraint_commitment(poly_trace, 8, &domain);
+                        prover.build_constraint_commitment(poly_trace, 72, &domain);
                     },
                     BatchSize::SmallInput,
                 )
@@ -163,7 +162,5 @@ pub fn get_random_values<E: FieldElement>(num_rows: usize) -> Vec<E> {
 criterion_group!(cuda_bench,
     cuda_bench_constraint_rpo,
     cuda_bench_constraint_rpx,
-    cpu_bench_constraint_rpo,
-    cpu_bench_constraint_rpx
 );
 criterion_main!(cuda_bench);

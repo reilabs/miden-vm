@@ -12,10 +12,10 @@ keywords = ["miden", "prover", "stark", "zkp"]
 edition = "2021"
 rust-version = "1.75"
 
-#[[bench]]
-#name = "build_constraints"
-#path = "benches/constraints.rs"
-#harness = false
+[[bench]]
+name = "build_constraints"
+path = "benches/constraints.rs"
+harness = false
 
 [[bench]]
 name = "build_traces"
@@ -26,11 +26,12 @@ harness = false
 concurrent = ["processor/concurrent", "std", "winter-prover/concurrent"]
 default = ["std"]
 metal = ["dep:miden-gpu", "dep:elsa", "dep:pollster", "concurrent", "std"]
-cuda = ["dep:miden-gpu", "std"]
+cuda = ["dep:miden-gpu", "std", "dep:allocator-api2"]
 std = ["air/std", "processor/std", "winter-prover/std"]
 
 [dependencies]
 air = { package = "miden-air", path = "../air", version = "0.8", default-features = false }
+allocator-api2 = { version = "0.2", optional = true }
 processor = { package = "miden-processor", path = "../processor", version = "0.8", default-features = false }
 tracing = { version = "0.1", default-features = false, features = ["attributes"] }
 winter-prover = { package = "winter-prover", version = "0.9", default-features = false }

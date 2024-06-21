@@ -13,13 +13,14 @@ use processor::{
     crypto::{ElementHasher, Hasher},
 };
 use std::{marker::PhantomData, println, time::Instant, vec, vec::Vec};
-use std::mem::size_of;
 use miden_gpu::HashFn;
-use miden_gpu::cuda::{CudaOptions, init_gpu, lde_into_rescue_batch, Trace, alloc_pinned, cleanup_gpu, set_transpose, Transpose};
+use miden_gpu::cuda::{CudaOptions, init_gpu, lde_into_rescue_batch, Trace, alloc_pinned, cleanup_gpu, set_transpose, Transpose, coset_intt_batch, NTTInputOutputOrder};
 use tracing::{event, Level};
 use winter_air::LagrangeKernelEvaluationFrame;
 use winter_prover::{crypto::{Digest, MerkleTree}, matrix::{ColMatrix, RowMatrix}, proof::Queries, CompositionPoly, CompositionPolyTrace, ConstraintCommitment, ConstraintCompositionCoefficients, DefaultConstraintEvaluator, EvaluationFrame, Prover, StarkDomain, TraceInfo, TraceLde, TracePolyTable};
 use air::AuxRandElements;
+use processor::math::fft;
+use allocator_api2::boxed::Box as CudaBox;
 
 #[cfg(test)]
 mod tests;
@@ -27,9 +28,7 @@ mod tests;
 // CONSTANTS
 // ================================================================================================
 const DIGEST_SIZE: usize = Rpo256::DIGEST_RANGE.end - Rpo256::DIGEST_RANGE.start;
-const RATE: usize = Rpo256::RATE_RANGE.end - Rpo256::RATE_RANGE.start;
 const CAPACITY: usize = 4;
-const MERKLE_TREE_HEADER_SIZE: usize = 2;
 
 // METAL RPO/RPX PROVER
 // ================================================================================================
@@ -120,58 +119,67 @@ impl<H, D, R> Prover for CudaExecutionProver<H, D, R>
         num_trace_poly_columns: usize,
         domain: &StarkDomain<Felt>,
     ) -> (ConstraintCommitment<E, Self::HashFn>, CompositionPoly<E>) {
-        // evaluate composition polynomial columns over the LDE domain
+        // TODO: set this as an option somewhere
+        let partition_size = 16;
 
         let lde_domain_size = domain.lde_domain_size();
         let lde_blowup = domain.trace_to_lde_blowup();
-        let ce_blowup = domain.trace_to_ce_blowup();
 
-        init_gpu(lde_domain_size.ilog2() as usize, lde_blowup.ilog2() as usize).expect("Could not initialize GPU.");
+        init_gpu(lde_domain_size.ilog2() as usize + 1, lde_blowup.trailing_zeros() as usize).expect("Could not initialize GPU.");
 
         let now = Instant::now();
+
+        // let trace_data = composition_poly_trace.into_inner().as_mut_slice();
+        //
+        // coset_intt_batch(Trace {
+        //     tmp: None,
+        //     data: trace_data,
+        //     num_cols: num_trace_poly_columns,
+        //     domain_size: trace_data.len() / num_trace_poly_columns,
+        // }, NTTInputOutputOrder::NN).expect("Failed to compute inverse ntt with offset.");
 
         let composition_poly =
             CompositionPoly::new(composition_poly_trace, domain, num_trace_poly_columns);
 
         let num_cols = composition_poly.num_columns();
-        let partition_count = (2 *  num_cols - 1) / num_cols;
+        let num_rows = composition_poly.column_len();
 
         let mut data = composition_poly.data().columns().flat_map(|c| c.to_vec()).collect::<Vec<E>>();
 
-        // allocate space to store all the results
-        let mut lde_out = alloc_pinned(data.len() * num_cols, E::ZERO);
-        let mut tmp = alloc_pinned(data.len() * num_cols * ce_blowup, E::ZERO);
-        let mut hash_states_out = alloc_pinned(partition_count * CAPACITY * lde_domain_size * 2, D::default());
-        let mut merkle_tree_out = alloc_pinned((2 * lde_domain_size - 1) * CAPACITY, D::default());
+        let hash_length = lde_domain_size * num_cols * CAPACITY;
+        let merkle_length = hash_length * 2;
 
-        set_transpose(Transpose::Full, 4);
-
-        let data_len = data.len();
+        let mut lde_out = alloc_pinned(lde_domain_size * num_cols, E::ZERO);
+        //let mut tmp = alloc_pinned(lde_domain_size * num_cols, E::ZERO);
+        let mut hash_states_out = alloc_pinned(hash_length, E::ZERO);
+        let mut merkle_tree_out = alloc_pinned(merkle_length, E::ZERO);
 
         lde_into_rescue_batch(Trace {
-            tmp: Some(&mut tmp),
+            tmp: None,
             data: data.as_mut_slice(),
-            num_cols: composition_poly.num_columns(),
-            domain_size: data_len / num_cols,
+            num_cols,
+            domain_size: num_rows,
         },
-            CudaOptions { blowup_factor: lde_blowup, partition_size: composition_poly.num_columns() as u32 },
-            &mut lde_out,
-            &mut hash_states_out,
-            &mut merkle_tree_out,
+            CudaOptions { blowup_factor: lde_blowup, partition_size },
+                              &mut lde_out,
+                              &mut hash_states_out,
+                              &mut merkle_tree_out,
             self.hash_fn)
             .expect("failed to compute lde into rescue batch.");
 
-        // NOTE: `merkle_tree_out` contains leaves. Currently, the bellow code is not correct.
-        // NOTE: `hash_states_out` should be transposed to row-major if we want to match the merkle_tree order.
-        // Leaves in merkle start at tree_offset:
-        // let tree_offset = MERKLE_TREE_HEADER_SIZE + num_cols * lde_domain_size;
+        let (nodes, leaves) = merkle_tree_out.split_at(hash_length);
 
-        //let num_base_columns =
-        //    composition_poly.num_columns() * <E as FieldElement>::EXTENSION_DEGREE;
-        //let (nodes, leaves) = merkle_tree_out.split_at(MERKLE_TREE_HEADER_SIZE + num_base_columns * lde_domain_size);
+        let commitment = MerkleTree::<H>::from_raw_parts(
+            nodes.chunks(4).map(|chunk| {
+                let array: [E::BaseField; 4] = chunk.iter().map(|e| e.base_element(0)).collect::<Vec<_>>().try_into().expect("Chunk is not of length 4");
+                D::from(&array)
+            }).collect(),
+            leaves.chunks(4).map(|chunk| {
+                let array: [E::BaseField; 4] = chunk.iter().map(|e| e.base_element(0)).collect::<Vec<_>>().try_into().expect("Chunk is not of length 4");
+                D::from(&array)
+            }).collect()
+        ).expect("failed to build Merkle tree");
 
-        let hash_states = hash_states_out.to_vec();
-        let commitment = MerkleTree::<H>::from_raw_parts(merkle_tree_out.to_vec(), hash_states).expect("failed to build Merkle tree");
 
         let composed_evaluations = RowMatrix::<E>::new(lde_out.to_vec(), 1, 1);
         let constraint_commitment = ConstraintCommitment::new(composed_evaluations, commitment);
@@ -355,6 +363,28 @@ impl<
         frame.next_mut().copy_from_slice(segment.row(next_lde_step));
     }
 
+    /// Populates the provided Lagrange kernel frame starting at the current row (as defined by
+    /// `lde_step`).
+    ///
+    /// Note that unlike [`EvaluationFrame`], the Lagrange kernel frame includes only the Lagrange
+    /// kernel column (as opposed to all columns).
+    fn read_lagrange_kernel_frame_into(&self, lde_step: usize, col_idx: usize, frame: &mut LagrangeKernelEvaluationFrame<E>) {
+        let frame = frame.frame_mut();
+        frame.truncate(0);
+
+        let aux_segment = &self.aux_segment_ldes[0];
+
+        frame.push(aux_segment.get(col_idx, lde_step));
+
+        let frame_length = self.trace_info.length().ilog2() as usize + 1;
+        for i in 0..frame_length - 1 {
+            let shift = self.blowup() * (1 << i);
+            let next_lde_step = (lde_step + shift) % self.trace_len();
+
+            frame.push(aux_segment.get(col_idx, next_lde_step));
+        }
+    }
+
     /// Returns trace table rows at the specified positions along with Merkle authentication paths
     /// from the commitment root to these rows.
     fn query(&self, positions: &[usize]) -> Vec<Queries> {
@@ -382,28 +412,6 @@ impl<
     /// Returns blowup factor which was used to extend the original execution trace into trace LDE.
     fn blowup(&self) -> usize {
         self.blowup
-    }
-
-    /// Populates the provided Lagrange kernel frame starting at the current row (as defined by
-    /// `lde_step`).
-    ///
-    /// Note that unlike [`EvaluationFrame`], the Lagrange kernel frame includes only the Lagrange
-    /// kernel column (as opposed to all columns).
-    fn read_lagrange_kernel_frame_into(&self, lde_step: usize, col_idx: usize, frame: &mut LagrangeKernelEvaluationFrame<E>) {
-        let frame = frame.frame_mut();
-        frame.truncate(0);
-
-        let aux_segment = &self.aux_segment_ldes[0];
-
-        frame.push(aux_segment.get(col_idx, lde_step));
-
-        let frame_length = self.trace_info.length().ilog2() as usize + 1;
-        for i in 0..frame_length - 1 {
-            let shift = self.blowup() * (1 << i);
-            let next_lde_step = (lde_step + shift) % self.trace_len();
-
-            frame.push(aux_segment.get(col_idx, next_lde_step));
-        }
     }
 
     /// Returns the trace info for the execution trace.
@@ -436,52 +444,66 @@ fn build_trace_commitment<
 ) -> (RowMatrix<E>, MerkleTree<H>, ColMatrix<E>) {
     let now = Instant::now();
 
+    let inv_twiddles = fft::get_inv_twiddles::<Felt>(trace.num_rows());
+    let trace_polys = trace.columns().map(|col| {
+        let mut poly = col.to_vec();
+        fft::interpolate_poly(&mut poly, &inv_twiddles);
+        poly
+    });
+
+    let partition_size = 16;
+
     let lde_domain_size = domain.lde_domain_size();
     let lde_blowup = domain.trace_to_lde_blowup();
-    let num_base_columns = trace.num_base_cols();
-    let partition_count = (2 *  num_base_columns - 1) / num_base_columns;
-    let ce_blowup = domain.trace_to_ce_blowup();
+    let num_columns = trace.num_cols();
 
     // initialize the GPU
-    init_gpu(lde_domain_size.ilog2() as usize, lde_blowup.ilog2() as usize).expect("Could not initialize GPU.");
+    init_gpu(lde_domain_size.trailing_zeros() as usize, lde_blowup.trailing_zeros() as usize).expect("Could not initialize GPU.");
 
-    let mut data = trace.columns().flat_map(|c| c.to_vec()).collect::<Vec<E>>();
+    let mut data = trace_polys.flat_map(|row| row).collect::<Vec<E>>();
 
-    // allocate space to store all the results
-    let mut lde_out = alloc_pinned(data.len() * num_base_columns, E::ZERO);
-    let mut tmp = alloc_pinned(data.len() * num_base_columns * ce_blowup, E::ZERO);
-    let mut hash_states_out = alloc_pinned(partition_count * CAPACITY * lde_domain_size * 2, D::default());
-    let mut merkle_tree_out = alloc_pinned((2 * lde_domain_size - 1) * CAPACITY + CAPACITY, D::default());
+    let hash_length = (2 * lde_domain_size) * CAPACITY;
+    let merkle_length = hash_length * 2;
+
+    let mut lde_out = alloc_pinned(lde_domain_size * trace.num_cols(), E::ZERO);
+    //let mut tmp = alloc_pinned(lde_domain_size * num_cols, E::ZERO);
+    let mut hash_states_out = alloc_pinned(hash_length, E::ZERO);
+    let mut merkle_tree_out = alloc_pinned(merkle_length, E::ZERO);
 
     // Number of threads needs to be tested
-    set_transpose(Transpose::Full, 4);
+    // set_transpose(Transpose::Full, 2);
 
     // all the outputs are written in column-major order
     lde_into_rescue_batch(Trace {
-        tmp: Some(&mut tmp),
+        tmp: None,
         data: data.as_mut_slice(),
         num_cols: trace.num_cols(),
         domain_size: trace.num_rows(),
     },
-        CudaOptions { blowup_factor: lde_blowup, partition_size: trace.num_cols() as u32 },
+        CudaOptions { blowup_factor: lde_blowup, partition_size },
         &mut lde_out,
         &mut hash_states_out,
         &mut merkle_tree_out,
         hash_fn)
         .expect("failed to compute lde into rescue batch.");
 
-    // NOTE: `merkle_tree_out` contains leaves.
-    // NOTE: `hash_states_out` should be transposed to row-major if we want to match the merkle_tree order.
-    // Leaves in merkle start at tree_offset:
-    // let tree_offset = MERKLE_TREE_HEADER_SIZE + num_cols * lde_domain_size;
-
     let trace_lde = RowMatrix::<E>::new(lde_out.to_vec(), 1, 1);
 
-    let tpolys: Vec<Vec<E>> = lde_out.chunks(lde_out.len() / num_base_columns).map(|e| e.to_vec()).collect();
+    let tpolys: Vec<Vec<E>> = lde_out.chunks(lde_out.len() / num_columns).map(|e| e.to_vec()).collect();
     let trace_polys: ColMatrix<E> = ColMatrix::new(tpolys);
 
-    //let (nodes, leaves) = merkle_tree_out.split_at(MERKLE_TREE_HEADER_SIZE + num_base_columns * lde_domain_size);
-    let trace_tree = MerkleTree::from_raw_parts(merkle_tree_out.to_vec(), hash_states_out.to_vec()).unwrap();
+    let (nodes, leaves) = merkle_tree_out.split_at(hash_length);
+    let trace_tree = MerkleTree::<H>::from_raw_parts(
+        nodes.chunks(4).map(|chunk| {
+            let array: [E::BaseField; 4] = chunk.iter().map(|e| e.base_element(0)).collect::<Vec<_>>().try_into().expect("Chunk is not of length 4");
+            D::from(&array)
+        }).collect(),
+        leaves.chunks(4).map(|chunk| {
+            let array: [E::BaseField; 4] = chunk.iter().map(|e| e.base_element(0)).collect::<Vec<_>>().try_into().expect("Chunk is not of length 4");
+            D::from(&array)
+        }).collect()
+    ).expect("failed to build Merkle tree");
+
 
     event!(
             Level::INFO,

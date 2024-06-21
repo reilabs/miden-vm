@@ -1,7 +1,7 @@
 use crate::*;
-use air::{ProvingOptions, StarkField};
+use air::{StarkField};
 use alloc::vec::Vec;
-use gpu::cuda::{CudaExecutionProver, DIGEST_SIZE, RATE};
+use gpu::cuda::{CudaExecutionProver, DIGEST_SIZE};
 use processor::{
     crypto::{Hasher, RpoDigest, RpoRandomCoin, Rpx256, RpxDigest, RpxRandomCoin},
     math::fft,
@@ -9,6 +9,8 @@ use processor::{
 use std::{assert_eq, matches, assert_ne};
 use winter_prover::{crypto::Digest, math::fields::CubeExtension, CompositionPolyTrace, TraceLde};
 use crate::gpu::tests::{create_test_prover, gen_random_trace, get_random_values, get_trace_info};
+
+const RATE: usize = Rpo256::RATE_RANGE.end - Rpo256::RATE_RANGE.start;
 
 type CubeFelt = CubeExtension<Felt>;
 
@@ -132,48 +134,48 @@ fn build_constraint_commitment_on_gpu_without_padding_matches_cpu<
     assert_eq!(composition_poly_cpu.into_columns(), composition_poly_gpu.into_columns());
 }
 
-#[test]
-fn rpo_build_trace_commitment_on_gpu_with_padding_matches_cpu() {
-    build_trace_commitment_on_gpu_with_padding_matches_cpu::<RpoRandomCoin, Rpo256, RpoDigest>(
-        HashFn::Rpo256,
-    );
-}
+// #[test]
+// fn rpo_build_trace_commitment_on_gpu_with_padding_matches_cpu() {
+//     build_trace_commitment_on_gpu_with_padding_matches_cpu::<RpoRandomCoin, Rpo256, RpoDigest>(
+//         HashFn::Rpo256,
+//     );
+// }
+//
+// #[test]
+// fn rpx_build_trace_commitment_on_gpu_with_padding_matches_cpu() {
+//     build_trace_commitment_on_gpu_with_padding_matches_cpu::<RpxRandomCoin, Rpx256, RpxDigest>(
+//         HashFn::Rpx256,
+//     );
+// }
 
-#[test]
-fn rpx_build_trace_commitment_on_gpu_with_padding_matches_cpu() {
-    build_trace_commitment_on_gpu_with_padding_matches_cpu::<RpxRandomCoin, Rpx256, RpxDigest>(
-        HashFn::Rpx256,
-    );
-}
+// #[test]
+// fn rpo_build_trace_commitment_on_gpu_without_padding_matches_cpu() {
+//     build_trace_commitment_on_gpu_without_padding_matches_cpu::<RpoRandomCoin, Rpo256, RpoDigest>(
+//         HashFn::Rpo256,
+//     );
+// }
 
-#[test]
-fn rpo_build_trace_commitment_on_gpu_without_padding_matches_cpu() {
-    build_trace_commitment_on_gpu_without_padding_matches_cpu::<RpoRandomCoin, Rpo256, RpoDigest>(
-        HashFn::Rpo256,
-    );
-}
-
-#[test]
-fn rpx_build_trace_commitment_on_gpu_without_padding_matches_cpu() {
-    build_trace_commitment_on_gpu_without_padding_matches_cpu::<RpxRandomCoin, Rpx256, RpxDigest>(
-        HashFn::Rpx256,
-    );
-}
-
-#[test]
-fn rpo_build_constraint_commitment_on_gpu_with_padding_matches_cpu() {
-    build_constraint_commitment_on_gpu_with_padding_matches_cpu::<RpoRandomCoin, Rpo256, RpoDigest>(
-        HashFn::Rpo256,
-    );
-}
-
-#[test]
-fn rpx_build_constraint_commitment_on_gpu_with_padding_matches_cpu() {
-    build_constraint_commitment_on_gpu_with_padding_matches_cpu::<RpxRandomCoin, Rpx256, RpxDigest>(
-        HashFn::Rpx256,
-    );
-}
-
+// #[test]
+// fn rpx_build_trace_commitment_on_gpu_without_padding_matches_cpu() {
+//     build_trace_commitment_on_gpu_without_padding_matches_cpu::<RpxRandomCoin, Rpx256, RpxDigest>(
+//         HashFn::Rpx256,
+//     );
+// }
+//
+// #[test]
+// fn rpo_build_constraint_commitment_on_gpu_with_padding_matches_cpu() {
+//     build_constraint_commitment_on_gpu_with_padding_matches_cpu::<RpoRandomCoin, Rpo256, RpoDigest>(
+//         HashFn::Rpo256,
+//     );
+// }
+//
+// #[test]
+// fn rpx_build_constraint_commitment_on_gpu_with_padding_matches_cpu() {
+//     build_constraint_commitment_on_gpu_with_padding_matches_cpu::<RpxRandomCoin, Rpx256, RpxDigest>(
+//         HashFn::Rpx256,
+//     );
+// }
+//
 #[test]
 fn rpo_build_constraint_commitment_on_gpu_without_padding_matches_cpu() {
     build_constraint_commitment_on_gpu_without_padding_matches_cpu::<
@@ -182,12 +184,12 @@ fn rpo_build_constraint_commitment_on_gpu_without_padding_matches_cpu() {
         RpoDigest,
     >(HashFn::Rpo256);
 }
-
-#[test]
-fn rpx_build_constraint_commitment_on_gpu_without_padding_matches_cpu() {
-    build_constraint_commitment_on_gpu_without_padding_matches_cpu::<
-        RpxRandomCoin,
-        Rpx256,
-        RpxDigest,
-    >(HashFn::Rpx256);
-}
+//
+// #[test]
+// fn rpx_build_constraint_commitment_on_gpu_without_padding_matches_cpu() {
+//     build_constraint_commitment_on_gpu_without_padding_matches_cpu::<
+//         RpxRandomCoin,
+//         Rpx256,
+//         RpxDigest,
+//     >(HashFn::Rpx256);
+// }

@@ -1,38 +1,98 @@
+// CONTRAINT
 
-cuda rpx/CudaRpxConstraint/12
-                        time:   [48.905 ms 48.937 ms 48.966 ms]
-                        change: [+1.4329% +1.5804% +1.7312%] (p = 0.00 < 0.05)
-                        Performance has regressed.
-Found 3 outliers among 10 measurements (30.00%)
-  1 (10.00%) low mild
-  1 (10.00%) high mild
-  1 (10.00%) high severe
-Benchmarking cuda rpx/CudaRpxConstraint/18: Warming up for 3.0000 s
-Warning: Unable to complete 10 samples in 5.0s. You may wish to increase target time to 32.3s.
-cuda rpx/CudaRpxConstraint/18
-                        time:   [3.2167 s 3.2199 s 3.2221 s]
-                        change: [-0.1368% +0.0071% +0.1398%] (p = 0.92 > 0.05)
+cuda rpo/CudaRpoConstraint/17
+                        time:   [2.1344 s 2.1875 s 2.2629 s]
+                        change: [-3.6305% -0.6159% +2.8201%] (p = 0.75 > 0.05)
                         No change in performance detected.
 Found 1 outliers among 10 measurements (10.00%)
-  1 (10.00%) low severe
-Benchmarking cuda rpx/CudaRpxConstraint/20: Warming up for 3.0000 s
-Warning: Unable to complete 10 samples in 5.0s. You may wish to increase target time to 131.2s.
-cuda rpx/CudaRpxConstraint/20
-                        time:   [13.071 s 13.080 s 13.088 s]
-
-Benchmarking cpu rpo/CpuRpoConstraint/12: Warming up for 3.0000 s
-Warning: Unable to complete 10 samples in 5.0s. You may wish to increase target time to 5.7s.
-cpu rpo/CpuRpoConstraint/12
-                        time:   [567.88 ms 567.95 ms 568.03 ms]
-                        change: [-0.5894% -0.5638% -0.5381%] (p = 0.00 < 0.05)
-                        Change within noise threshold.
+  1 (10.00%) high severe
+Benchmarking cuda rpo/CudaRpoConstraint/18: Warming up for 3.0000 s
+Warning: Unable to complete 10 samples in 5.0s. You may wish to increase target time to 45.2s.
+cuda rpo/CudaRpoConstraint/18
+                        time:   [4.2988 s 4.3681 s 4.4593 s]
+                        change: [-4.9945% -1.7528% +1.2077%] (p = 0.35 > 0.05)
+                        No change in performance detected.
+Found 2 outliers among 10 measurements (20.00%)
+  2 (20.00%) high severe
+Benchmarking cuda rpo/CudaRpoConstraint/19: Warming up for 3.0000 s
+Warning: Unable to complete 10 samples in 5.0s. You may wish to increase target time to 86.3s.
+cuda rpo/CudaRpoConstraint/19
+                        time:   [8.4876 s 8.5762 s 8.6791 s]
+                        change: [-2.7795% -1.0050% +0.8453%] (p = 0.33 > 0.05)
+                        No change in performance detected.
 Found 1 outliers among 10 measurements (10.00%)
   1 (10.00%) high mild
-Benchmarking cpu rpo/CpuRpoConstraint/18: Warming up for 3.0000 s
-Warning: Unable to complete 10 samples in 5.0s. You may wish to increase target time to 371.3s.
-cpu rpo/CpuRpoConstraint/18
-                        time:   [37.095 s 37.100 s 37.105 s]
-Benchmarking cpu rpo/CpuRpoConstraint/20: Warming up for 3.0000 s
-Warning: Unable to complete 10 samples in 5.0s. You may wish to increase target time to 1493.5s.
-Benchmarking cpu rpo/CpuRpoConstraint/20: Collecting 10 samples in estimated 1493.5 s (10 iterations)^C
-ubuntu@ip-172-31-24-142:~/miden-vm/prover$
+Benchmarking cuda rpo/CudaRpoConstraint/20: Warming up for 3.0000 s
+Warning: Unable to complete 10 samples in 5.0s. You may wish to increase target time to 168.5s.
+cuda rpo/CudaRpoConstraint/20
+                        time:   [16.820 s 16.975 s 17.150 s]
+                        change: [-2.5897% -1.0888% +0.4084%] (p = 0.20 > 0.05)
+                        No change in performance detected.
+
+Benchmarking cuda rpx/CudaRpxConstraint/17: Warming up for 3.0000 s
+Warning: Unable to complete 10 samples in 5.0s. You may wish to increase target time to 22.0s.
+cuda rpx/CudaRpxConstraint/17
+                        time:   [2.1739 s 2.1799 s 2.1863 s]
+                        change: [-2.6698% -1.6192% -0.9225%] (p = 0.00 < 0.05)
+                        Change within noise threshold.
+Benchmarking cuda rpx/CudaRpxConstraint/18: Warming up for 3.0000 s
+Warning: Unable to complete 10 samples in 5.0s. You may wish to increase target time to 43.4s.
+cuda rpx/CudaRpxConstraint/18
+                        time:   [4.3021 s 4.3765 s 4.4891 s]
+                        change: [-0.7752% +0.9647% +3.7356%] (p = 0.55 > 0.05)
+                        No change in performance detected.
+Found 2 outliers among 10 measurements (20.00%)
+  2 (20.00%) high severe
+
+  Benchmarking cuda rpx/CudaRpxConstraint/19: Warming up for 3.0000 s
+  Warning: Unable to complete 10 samples in 5.0s. You may wish to increase target time to 84.9s.
+  cuda rpx/CudaRpxConstraint/19
+                          time:   [8.4672 s 8.5696 s 8.6848 s]
+                          change: [-2.5306% -0.4158% +1.6368%] (p = 0.71 > 0.05)
+                          No change in performance detected.
+  Benchmarking cuda rpx/CudaRpxConstraint/20: Warming up for 3.0000 s>
+
+  // TRACE
+
+trace info length: 131072
+trace info: 131072
+trace length: 1048576
+Benchmarking cuda rpx/CudaRpxTrace/17: Warming up for 3.0000 s
+Warning: Unable to complete 10 samples in 5.0s. You may wish to increase target time to 17.7s.
+cuda rpx/CudaRpxTrace/17
+                        time:   [1.7710 s 1.7744 s 1.7781 s]
+                        change: [-5.2814% -2.2403% +0.4233%] (p = 0.18 > 0.05)
+                        No change in performance detected.
+trace info length: 262144
+trace info: 262144
+trace length: 2097152
+Benchmarking cuda rpx/CudaRpxTrace/18: Warming up for 3.0000 s
+Warning: Unable to complete 10 samples in 5.0s. You may wish to increase target time to 34.2s.
+cuda rpx/CudaRpxTrace/18
+                        time:   [3.4257 s 3.4927 s 3.5898 s]
+                        change: [-2.8192% +0.5531% +4.1175%] (p = 0.78 > 0.05)
+                        No change in performance detected.
+Found 1 outliers among 10 measurements (10.00%)
+  1 (10.00%) high severe
+trace info length: 524288
+trace info: 524288
+trace length: 4194304
+Benchmarking cuda rpx/CudaRpxTrace/19: Warming up for 3.0000 s
+Warning: Unable to complete 10 samples in 5.0s. You may wish to increase target time to 70.5s.
+cuda rpx/CudaRpxTrace/19
+                        time:   [6.8170 s 6.9614 s 7.1251 s]
+                        change: [+1.8818% +4.1608% +6.5996%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+trace info length: 1048576
+trace info: 1048576
+trace length: 8388608
+Benchmarking cuda rpx/CudaRpxTrace/20: Warming up for 3.0000 s
+Warning: Unable to complete 10 samples in 5.0s. You may wish to increase target time to 132.8s.
+cuda rpx/CudaRpxTrace/20
+                        time:   [13.250 s 13.404 s 13.585 s]
+                        change: [-0.6803% +0.7928% +2.5084%] (p = 0.35 > 0.05)
+                        No change in performance detected.
+
+
+
+///////////// NEW
