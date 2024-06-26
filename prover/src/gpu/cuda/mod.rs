@@ -20,7 +20,6 @@ use winter_air::LagrangeKernelEvaluationFrame;
 use winter_prover::{crypto::{Digest, MerkleTree}, matrix::{ColMatrix, RowMatrix}, proof::Queries, CompositionPoly, CompositionPolyTrace, ConstraintCommitment, ConstraintCompositionCoefficients, DefaultConstraintEvaluator, EvaluationFrame, Prover, StarkDomain, TraceInfo, TraceLde, TracePolyTable};
 use air::AuxRandElements;
 use processor::math::fft;
-use allocator_api2::boxed::Box as CudaBox;
 
 #[cfg(test)]
 mod tests;
@@ -129,30 +128,19 @@ impl<H, D, R> Prover for CudaExecutionProver<H, D, R>
 
         let now = Instant::now();
 
-        // let trace_data = composition_poly_trace.into_inner().as_mut_slice();
-        //
-        // coset_intt_batch(Trace {
-        //     tmp: None,
-        //     data: trace_data,
-        //     num_cols: num_trace_poly_columns,
-        //     domain_size: trace_data.len() / num_trace_poly_columns,
-        // }, NTTInputOutputOrder::NN).expect("Failed to compute inverse ntt with offset.");
-
         let composition_poly =
             CompositionPoly::new(composition_poly_trace, domain, num_trace_poly_columns);
 
         let num_cols = composition_poly.num_columns();
         let num_rows = composition_poly.column_len();
 
-        let mut data = composition_poly.data().columns().flat_map(|c| c.to_vec()).collect::<Vec<E>>();
+        let partition_count = (num_cols + partition_size - 1) / partition_size;
 
-        let hash_length = lde_domain_size * num_cols * CAPACITY;
-        let merkle_length = hash_length * 2;
+        let mut data: Vec<E> = composition_poly.data().columns().flat_map(|c| c.to_vec()).collect();
 
         let mut lde_out = alloc_pinned(lde_domain_size * num_cols, E::ZERO);
-        //let mut tmp = alloc_pinned(lde_domain_size * num_cols, E::ZERO);
-        let mut hash_states_out = alloc_pinned(hash_length, E::ZERO);
-        let mut merkle_tree_out = alloc_pinned(merkle_length, E::ZERO);
+        let mut hash_states_out = alloc_pinned(partition_count * lde_domain_size * CAPACITY, E::ZERO);
+        let mut merkle_tree_out = alloc_pinned((lde_domain_size - 1) * CAPACITY, E::ZERO);
 
         lde_into_rescue_batch(Trace {
             tmp: None,
@@ -167,21 +155,26 @@ impl<H, D, R> Prover for CudaExecutionProver<H, D, R>
             self.hash_fn)
             .expect("failed to compute lde into rescue batch.");
 
-        let (nodes, leaves) = merkle_tree_out.split_at(hash_length);
+        let zero_digest = D::from(&[E::BaseField::ZERO; CAPACITY]);
 
         let commitment = MerkleTree::<H>::from_raw_parts(
-            nodes.chunks(4).map(|chunk| {
-                let array: [E::BaseField; 4] = chunk.iter().map(|e| e.base_element(0)).collect::<Vec<_>>().try_into().expect("Chunk is not of length 4");
-                D::from(&array)
-            }).collect(),
-            leaves.chunks(4).map(|chunk| {
-                let array: [E::BaseField; 4] = chunk.iter().map(|e| e.base_element(0)).collect::<Vec<_>>().try_into().expect("Chunk is not of length 4");
-                D::from(&array)
-            }).collect()
-        ).expect("failed to build Merkle tree");
+            std::iter::once(zero_digest)
+                .chain(
+                    merkle_tree_out[0..(merkle_tree_out.len() / num_cols) - CAPACITY]
+                        .chunks(4)
+                        .map(|chunk| {
+                            let array: [E::BaseField; 4] = chunk.iter().map(|e| e.base_element(0)).collect::<Vec<_>>().try_into().expect("Chunk is not of length 4");
+                            D::from(&array)
+                        })
+                )
+                .collect(),
+            hash_states_out.chunks(4).map(|chunk| {
+                        let array: [E::BaseField; 4] = chunk.iter().map(|e| e.base_element(0)).collect::<Vec<_>>().try_into().expect("Chunk is not of length 4");
+                        D::from(&array)
+                    }).collect()
+        ).expect("could not build a merkle tree");
 
-
-        let composed_evaluations = RowMatrix::<E>::new(lde_out.to_vec(), 1, 1);
+        let composed_evaluations = RowMatrix::<E>::new(lde_out.to_vec(), 4, 1);
         let constraint_commitment = ConstraintCommitment::new(composed_evaluations, commitment);
 
         event!(
@@ -443,37 +436,32 @@ fn build_trace_commitment<
     hash_fn: HashFn,
 ) -> (RowMatrix<E>, MerkleTree<H>, ColMatrix<E>) {
     let now = Instant::now();
-
-    let inv_twiddles = fft::get_inv_twiddles::<Felt>(trace.num_rows());
-    let trace_polys = trace.columns().map(|col| {
-        let mut poly = col.to_vec();
-        fft::interpolate_poly(&mut poly, &inv_twiddles);
-        poly
-    });
-
     let partition_size = 16;
+
+    // let inv_twiddles = fft::get_inv_twiddles::<Felt>(trace.num_rows());
+    // let trace_polys = trace.columns().map(|col| {
+    //     let mut poly = col.to_vec();
+    //     fft::interpolate_poly(&mut poly, &inv_twiddles);
+    //     poly
+    // });
+
 
     let lde_domain_size = domain.lde_domain_size();
     let lde_blowup = domain.trace_to_lde_blowup();
     let num_columns = trace.num_cols();
 
+    let partition_count = (num_columns + partition_size - 1) / partition_size;
+
     // initialize the GPU
     init_gpu(lde_domain_size.trailing_zeros() as usize, lde_blowup.trailing_zeros() as usize).expect("Could not initialize GPU.");
 
-    let mut data = trace_polys.flat_map(|row| row).collect::<Vec<E>>();
-
-    let hash_length = (2 * lde_domain_size) * CAPACITY;
-    let merkle_length = hash_length * 2;
+    // let mut data = trace_polys.flat_map(|row| row).collect::<Vec<E>>();
+    let mut data: Vec<E> = trace.columns().into_iter().flat_map(|e| e.to_vec()).collect();
 
     let mut lde_out = alloc_pinned(lde_domain_size * trace.num_cols(), E::ZERO);
-    //let mut tmp = alloc_pinned(lde_domain_size * num_cols, E::ZERO);
-    let mut hash_states_out = alloc_pinned(hash_length, E::ZERO);
-    let mut merkle_tree_out = alloc_pinned(merkle_length, E::ZERO);
+    let mut hash_states_out = alloc_pinned(partition_count * lde_domain_size * CAPACITY, E::ZERO);
+    let mut merkle_tree_out = alloc_pinned((2 * lde_domain_size - 1) * CAPACITY, E::ZERO);
 
-    // Number of threads needs to be tested
-    // set_transpose(Transpose::Full, 2);
-
-    // all the outputs are written in column-major order
     lde_into_rescue_batch(Trace {
         tmp: None,
         data: data.as_mut_slice(),
@@ -487,22 +475,31 @@ fn build_trace_commitment<
         hash_fn)
         .expect("failed to compute lde into rescue batch.");
 
-    let trace_lde = RowMatrix::<E>::new(lde_out.to_vec(), 1, 1);
+    let trace_lde = RowMatrix::<E>::new(lde_out.to_vec(), 4, 1);
 
     let tpolys: Vec<Vec<E>> = lde_out.chunks(lde_out.len() / num_columns).map(|e| e.to_vec()).collect();
     let trace_polys: ColMatrix<E> = ColMatrix::new(tpolys);
 
-    let (nodes, leaves) = merkle_tree_out.split_at(hash_length);
+    let zero_digest = D::from(&[E::BaseField::ZERO; CAPACITY]);
+
+    println!("number of nodes: {}", merkle_tree_out.len());
+
     let trace_tree = MerkleTree::<H>::from_raw_parts(
-        nodes.chunks(4).map(|chunk| {
-            let array: [E::BaseField; 4] = chunk.iter().map(|e| e.base_element(0)).collect::<Vec<_>>().try_into().expect("Chunk is not of length 4");
-            D::from(&array)
-        }).collect(),
-        leaves.chunks(4).map(|chunk| {
+        std::iter::once(zero_digest)
+            .chain(
+                merkle_tree_out[0..merkle_tree_out.len() / 2 - (CAPACITY / 2)]
+                    .chunks(4)
+                    .map(|chunk| {
+                        let array: [E::BaseField; 4] = chunk.iter().map(|e| e.base_element(0)).collect::<Vec<_>>().try_into().expect("Chunk is not of length 4");
+                        D::from(&array)
+                    })
+            )
+            .collect(),
+        merkle_tree_out[merkle_tree_out.len() / 2 - (CAPACITY / 2)..].chunks(4).map(|chunk| {
             let array: [E::BaseField; 4] = chunk.iter().map(|e| e.base_element(0)).collect::<Vec<_>>().try_into().expect("Chunk is not of length 4");
             D::from(&array)
         }).collect()
-    ).expect("failed to build Merkle tree");
+    ).expect("could not build a merkle tree");
 
 
     event!(

@@ -26,8 +26,8 @@ fn build_trace_commitment_on_gpu_with_padding_matches_cpu<
     let cpu_prover = create_test_prover::<R, H>(is_rpx);
     let gpu_prover = CudaExecutionProver::new(create_test_prover::<R, H>(is_rpx), hash_fn);
     let num_rows = 1 << 8;
-    let trace_info = get_trace_info(1, num_rows);
-    let trace = gen_random_trace(num_rows, RATE + 1);
+    let trace_info = get_trace_info(8, num_rows);
+    let trace = gen_random_trace(num_rows, 8);
     let domain = StarkDomain::from_twiddles(fft::get_twiddles(num_rows), 8, Felt::GENERATOR);
 
     let (cpu_trace_lde, cpu_polys) =
@@ -148,12 +148,12 @@ fn build_constraint_commitment_on_gpu_without_padding_matches_cpu<
 //     );
 // }
 
-// #[test]
-// fn rpo_build_trace_commitment_on_gpu_without_padding_matches_cpu() {
-//     build_trace_commitment_on_gpu_without_padding_matches_cpu::<RpoRandomCoin, Rpo256, RpoDigest>(
-//         HashFn::Rpo256,
-//     );
-// }
+#[test]
+fn rpo_build_trace_commitment_on_gpu_without_padding_matches_cpu() {
+    build_trace_commitment_on_gpu_without_padding_matches_cpu::<RpoRandomCoin, Rpo256, RpoDigest>(
+        HashFn::Rpo256,
+    );
+}
 
 // #[test]
 // fn rpx_build_trace_commitment_on_gpu_without_padding_matches_cpu() {
@@ -176,14 +176,14 @@ fn build_constraint_commitment_on_gpu_without_padding_matches_cpu<
 //     );
 // }
 //
-#[test]
-fn rpo_build_constraint_commitment_on_gpu_without_padding_matches_cpu() {
-    build_constraint_commitment_on_gpu_without_padding_matches_cpu::<
-        RpoRandomCoin,
-        Rpo256,
-        RpoDigest,
-    >(HashFn::Rpo256);
-}
+// #[test]
+// fn rpo_build_constraint_commitment_on_gpu_without_padding_matches_cpu() {
+//     build_constraint_commitment_on_gpu_without_padding_matches_cpu::<
+//         RpoRandomCoin,
+//         Rpo256,
+//         RpoDigest,
+//     >(HashFn::Rpo256);
+// }
 //
 // #[test]
 // fn rpx_build_constraint_commitment_on_gpu_without_padding_matches_cpu() {

@@ -1,0 +1,29 @@
+        // for (i, fr) in lde_out.iter().enumerate() {
+        //     if *fr == E::ZERO {
+        //         println!("zero is at: {i}, and length of lde_out is {}\n and the lde len is: {}\n and lde_domain_size is {lde_domain_size}", lde_out.len(), lde_out.len());
+        //         break;
+        //     }
+        //     if i == lde_out.len() - 1 {
+        //         println!("there are no zeroes in lde_out");
+        //     }
+        // }
+        //
+        // for (i, fr) in hash_states_out.iter().enumerate() {
+        //     if *fr == E::ZERO {
+        //         println!("zero is at: {i}, and length of hash_states_out is {}\n and the lde len is: {}\n and lde_domain_size is {lde_domain_size}", hash_states_out.len(), lde_out.len());
+        //         break;
+        //     }
+        //     if i == hash_states_out.len() - 1 {
+        //         println!("there are no zeroes in hash_states_out");
+        //     }
+        // }
+        //
+        // for (i, fr) in merkle_tree_out.iter().enumerate() {
+        //     if *fr == E::ZERO {
+        //         println!("zero is at: {i}, and length of merkle_tree_out is {}", merkle_tree_out.len());
+        //         break;
+        //     }
+        //     if i == merkle_tree_out.len() - 1 {
+        //         println!("there are no zeroes in merkle_tree_out");
+        //     }
+        // }

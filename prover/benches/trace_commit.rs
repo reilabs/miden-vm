@@ -17,10 +17,12 @@ use miden_prover::{ExecutionProver, StackInputs, StackOutputs};
 #[cfg(all(feature = "metal", target_arch = "aarch64", target_os = "macos"))]
 use crate::gpu::metal::MetalExecutionProver;
 
-// Random trace is built from RATE columns with 1 << 17,18,19,20 rows,
-// making the full trace length equal to 1 << 20,21,22,23
+// Random trace is built columns with 1 << 17,18,19,20 rows,
+// making the full trace length equal to 1 << 20,21,22,23 after LDE
 const BENCHMARK_INPUT_SIZES: [usize; 4] = [17,18,19,20];
 const CE_BLOWUP: usize = 8;
+
+const NUM_COLUMNS: usize = 70;
 
 const RATE: usize = Rpo256::RATE_RANGE.end - Rpo256::RATE_RANGE.start;
 
@@ -74,7 +76,7 @@ pub fn cuda_bench_trace_rpo(c: &mut Criterion) {
         let domain = StarkDomain::from_twiddles(fft::get_twiddles(num_rows), ce_blowup_factor, Felt::GENERATOR);
 
         let trace_info = get_trace_info(1, num_rows);
-        let trace = gen_random_trace(num_rows, RATE);
+        let trace = gen_random_trace(num_rows, NUM_COLUMNS);
 
         group.bench_function(BenchmarkId::new("CudaRpoTrace", input_size + 3), |b| {
             b.iter(|| {
@@ -102,7 +104,7 @@ pub fn cuda_bench_trace_rpx(c: &mut Criterion) {
         let domain = StarkDomain::from_twiddles(fft::get_twiddles(num_rows), ce_blowup_factor, Felt::GENERATOR);
 
         let trace_info = get_trace_info(1, num_rows);
-        let trace = gen_random_trace(num_rows, RATE);
+        let trace = gen_random_trace(num_rows, NUM_COLUMNS);
 
         group.bench_function(BenchmarkId::new("CudaRpxTrace", input_size + 3), |b| {
             b.iter(|| {
@@ -129,7 +131,7 @@ pub fn cpu_bench_trace_rpo(c: &mut Criterion) {
 
 
         let trace_info = get_trace_info(1, num_rows);
-        let trace = gen_random_trace(num_rows, RATE);
+        let trace = gen_random_trace(num_rows, NUM_COLUMNS);
 
         group.bench_function(BenchmarkId::new("CpuRpoTrace", input_size + 3), |b| {
             b.iter(|| {
@@ -155,7 +157,7 @@ pub fn cpu_bench_trace_rpx(c: &mut Criterion) {
         let domain = StarkDomain::from_twiddles(fft::get_twiddles(num_rows), CE_BLOWUP, Felt::GENERATOR);
 
         let trace_info = get_trace_info(1, num_rows);
-        let trace = gen_random_trace(num_rows, RATE);
+        let trace = gen_random_trace(num_rows, NUM_COLUMNS);
 
         group.bench_function(BenchmarkId::new("CpuRpxTrace", input_size + 3), |b| {
             b.iter(|| {
