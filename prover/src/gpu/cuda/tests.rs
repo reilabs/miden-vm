@@ -2,7 +2,7 @@ use alloc::vec::Vec;
 use std::vec;
 
 use air::{ProvingOptions, StarkField};
-use miden_gpu::{DIGEST_SIZE, RATE, HashFn};
+use miden_gpu::{cuda::alloc::alloc_pinned, HashFn, DIGEST_SIZE, RATE};
 use processor::{
     crypto::{Hasher, RpoDigest, RpoRandomCoin, Rpx256, RpxDigest, RpxRandomCoin},
     math::fft,
@@ -22,16 +22,28 @@ fn build_trace_commitment_on_gpu_with_padding_matches_cpu<
 ) {
     let is_rpx = matches!(hash_fn, HashFn::Rpx256);
 
-    let cpu_prover = create_test_prover::<R, H>(is_rpx);
-    let gpu_prover = CudaExecutionProver::new(create_test_prover::<R, H>(is_rpx), hash_fn);
     let num_rows = 1 << 8;
     let trace_info = get_trace_info(1, num_rows);
     let trace = gen_random_trace(num_rows, RATE + 1);
     let domain = StarkDomain::from_twiddles(fft::get_twiddles(num_rows), 8, Felt::GENERATOR);
     let partition_options = PartitionOptions::new(1, 8);
 
-    let (cpu_trace_lde, cpu_polys) = cpu_prover.new_trace_lde::<Felt>(&trace_info, &trace, &domain, partition_options);
-    let (gpu_trace_lde, gpu_polys) = gpu_prover.new_trace_lde::<Felt>(&trace_info, &trace, &domain, partition_options);
+    let mut main = alloc_pinned(102400, Felt::ZERO);
+    let mut aux = alloc_pinned(102400, Felt::ZERO);
+    let mut ce = alloc_pinned(102400, Felt::ZERO);
+    let gpu_prover = CudaExecutionProver::new(
+        create_test_prover::<R, H>(is_rpx),
+        hash_fn,
+        &mut main,
+        &mut aux,
+        &mut ce,
+    );
+    let cpu_prover = create_test_prover::<R, H>(is_rpx);
+
+    let (cpu_trace_lde, cpu_polys) =
+        cpu_prover.new_trace_lde::<Felt>(&trace_info, &trace, &domain, partition_options);
+    let (gpu_trace_lde, gpu_polys) =
+        gpu_prover.new_trace_lde::<Felt>(&trace_info, &trace, &domain, partition_options);
 
     assert_eq!(
         cpu_trace_lde.get_main_trace_commitment(),
@@ -52,16 +64,28 @@ fn build_trace_commitment_on_gpu_without_padding_matches_cpu<
 ) {
     let is_rpx = matches!(hash_fn, HashFn::Rpx256);
 
-    let cpu_prover = create_test_prover::<R, H>(is_rpx);
-    let gpu_prover = CudaExecutionProver::new(create_test_prover::<R, H>(is_rpx), hash_fn);
     let num_rows = 1 << 8;
     let trace_info = get_trace_info(8, num_rows);
     let trace = gen_random_trace(num_rows, RATE);
     let domain = StarkDomain::from_twiddles(fft::get_twiddles(num_rows), 8, Felt::GENERATOR);
     let partition_options = PartitionOptions::new(1, 8);
 
-    let (cpu_trace_lde, cpu_polys) = cpu_prover.new_trace_lde::<Felt>(&trace_info, &trace, &domain, partition_options);
-    let (gpu_trace_lde, gpu_polys) = gpu_prover.new_trace_lde::<Felt>(&trace_info, &trace, &domain, partition_options);
+    let mut main = alloc_pinned(102400, Felt::ZERO);
+    let mut aux = alloc_pinned(102400, Felt::ZERO);
+    let mut ce = alloc_pinned(102400, Felt::ZERO);
+    let gpu_prover = CudaExecutionProver::new(
+        create_test_prover::<R, H>(is_rpx),
+        hash_fn,
+        &mut main,
+        &mut aux,
+        &mut ce,
+    );
+    let cpu_prover = create_test_prover::<R, H>(is_rpx);
+
+    let (cpu_trace_lde, cpu_polys) =
+        cpu_prover.new_trace_lde::<Felt>(&trace_info, &trace, &domain, partition_options);
+    let (gpu_trace_lde, gpu_polys) =
+        gpu_prover.new_trace_lde::<Felt>(&trace_info, &trace, &domain, partition_options);
 
     assert_eq!(
         cpu_trace_lde.get_main_trace_commitment(),
@@ -82,13 +106,23 @@ fn build_constraint_commitment_on_gpu_with_padding_matches_cpu<
 ) {
     let is_rpx = matches!(hash_fn, HashFn::Rpx256);
 
-    let cpu_prover = create_test_prover::<R, H>(is_rpx);
-    let gpu_prover = CudaExecutionProver::new(create_test_prover::<R, H>(is_rpx), hash_fn);
     let num_rows = 1 << 8;
     let ce_blowup_factor = 2;
     let values = get_random_values::<Felt>(num_rows * ce_blowup_factor);
     let domain = StarkDomain::from_twiddles(fft::get_twiddles(num_rows), 8, Felt::GENERATOR);
     let partition_options = PartitionOptions::new(1, 8);
+
+    let mut main = alloc_pinned(102400, Felt::ZERO);
+    let mut aux = alloc_pinned(102400, Felt::ZERO);
+    let mut ce = alloc_pinned(102400, Felt::ZERO);
+    let gpu_prover = CudaExecutionProver::new(
+        create_test_prover::<R, H>(is_rpx),
+        hash_fn,
+        &mut main,
+        &mut aux,
+        &mut ce,
+    );
+    let cpu_prover = create_test_prover::<R, H>(is_rpx);
 
     let (commitment_cpu, composition_poly_cpu) = cpu_prover.build_constraint_commitment(
         CompositionPolyTrace::new(values.clone()),
@@ -96,8 +130,12 @@ fn build_constraint_commitment_on_gpu_with_padding_matches_cpu<
         &domain,
         partition_options,
     );
-    let (commitment_gpu, composition_poly_gpu) =
-        gpu_prover.build_constraint_commitment(CompositionPolyTrace::new(values), 2, &domain, partition_options);
+    let (commitment_gpu, composition_poly_gpu) = gpu_prover.build_constraint_commitment(
+        CompositionPolyTrace::new(values),
+        2,
+        &domain,
+        partition_options,
+    );
 
     assert_eq!(commitment_cpu.commitment(), commitment_gpu.commitment());
     assert_ne!(0, composition_poly_cpu.data().num_base_cols() % RATE);
@@ -113,13 +151,23 @@ fn build_constraint_commitment_on_gpu_without_padding_matches_cpu<
 ) {
     let is_rpx = matches!(hash_fn, HashFn::Rpx256);
 
-    let cpu_prover = create_test_prover::<R, H>(is_rpx);
-    let gpu_prover = CudaExecutionProver::new(create_test_prover::<R, H>(is_rpx), hash_fn);
     let num_rows = 1 << 8;
     let ce_blowup_factor = 8;
     let values = get_random_values::<Felt>(num_rows * ce_blowup_factor);
     let domain = StarkDomain::from_twiddles(fft::get_twiddles(num_rows), 8, Felt::GENERATOR);
     let partition_options = PartitionOptions::new(1, 8);
+
+    let mut main = alloc_pinned(102400, Felt::ZERO);
+    let mut aux = alloc_pinned(102400, Felt::ZERO);
+    let mut ce = alloc_pinned(102400, Felt::ZERO);
+    let gpu_prover = CudaExecutionProver::new(
+        create_test_prover::<R, H>(is_rpx),
+        hash_fn,
+        &mut main,
+        &mut aux,
+        &mut ce,
+    );
+    let cpu_prover = create_test_prover::<R, H>(is_rpx);
 
     let (commitment_cpu, composition_poly_cpu) = cpu_prover.build_constraint_commitment(
         CompositionPolyTrace::new(values.clone()),
@@ -127,8 +175,12 @@ fn build_constraint_commitment_on_gpu_without_padding_matches_cpu<
         &domain,
         partition_options,
     );
-    let (commitment_gpu, composition_poly_gpu) =
-        gpu_prover.build_constraint_commitment(CompositionPolyTrace::new(values), 8, &domain, partition_options);
+    let (commitment_gpu, composition_poly_gpu) = gpu_prover.build_constraint_commitment(
+        CompositionPolyTrace::new(values),
+        8,
+        &domain,
+        partition_options,
+    );
 
     assert_eq!(commitment_cpu.commitment(), commitment_gpu.commitment());
     assert_eq!(0, composition_poly_cpu.data().num_base_cols() % RATE);
