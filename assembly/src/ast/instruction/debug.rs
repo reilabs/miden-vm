@@ -45,7 +45,8 @@ impl DebugOptions {
                 let (start, end) = (start.expect_value(), end.expect_value());
                 Vm::LocalInterval(start, end, proc_ctx.num_locals())
             },
-            other @ (Ast::LocalRangeFrom(_) | Ast::LocalAll) => {
+            Ast::LocalAll => Vm::LocalInterval(0, proc_ctx.num_locals(), proc_ctx.num_locals()),
+            other @ Ast::LocalRangeFrom(_) => {
                 unimplemented!("compilation of debug instruction {other:?}");
             },
         };
