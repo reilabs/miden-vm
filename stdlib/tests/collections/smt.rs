@@ -3,19 +3,17 @@ use super::*;
 // TEST DATA
 // ================================================================================================
 
+const fn word(e0: u64, e1: u64, e2: u64, e3: u64) -> [Felt; 4] {
+    [Felt::new(e0), Felt::new(e1), Felt::new(e2), Felt::new(e3)]
+}
+
 /// Note: We never insert at the same key twice. This is so that the `smt::get` test can loop over
 /// leaves, get the associated value, and compare. We test inserting at the same key twice in tests
 /// that use different data.
 const LEAVES: [(RpoDigest, Word); 2] = [
-    (
-        RpoDigest::new([Felt::new(101), Felt::new(102), Felt::new(103), Felt::new(104)]),
-        [Felt::new(1_u64), Felt::new(2_u64), Felt::new(3_u64), Felt::new(4_u64)],
-    ),
+    (RpoDigest::new(word(101, 102, 103, 104)), word(1, 2, 3, 4)),
     // Most significant Felt differs from previous
-    (
-        RpoDigest::new([Felt::new(105), Felt::new(106), Felt::new(107), Felt::new(108)]),
-        [Felt::new(5_u64), Felt::new(6_u64), Felt::new(7_u64), Felt::new(8_u64)],
-    ),
+    (RpoDigest::new(word(105, 106, 107, 108)), word(5, 6, 7, 8)),
 ];
 
 /// Tests `get` on every key present in the SMT, as well as an empty leaf
