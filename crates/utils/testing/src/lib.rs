@@ -312,7 +312,7 @@ impl Test {
             .fold(assembler, |mut assembler, (path, source)| {
                 let module = source
                     .parse_with_options(
-                        &assembler.source_manager(),
+                        &self.source_manager,
                         ParseOptions::new(ModuleKind::Library, path.clone()).unwrap(),
                     )
                     .expect("invalid masm source code");
