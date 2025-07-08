@@ -138,6 +138,20 @@ impl Library {
     pub fn mast_forest(&self) -> &Arc<MastForest> {
         &self.mast_forest
     }
+
+    /// Returns the digest of the procedure with the specified name, or `None` if it was not found
+    /// in the library or its library path is malformed.
+    pub fn get_procedure_root_by_name(
+        &self,
+        proc_name: impl TryInto<QualifiedProcedureName>,
+    ) -> Option<Word> {
+        if let Ok(qualified_proc_name) = proc_name.try_into() {
+            let node_id = self.exports.get(&qualified_proc_name);
+            node_id.map(|id| self.mast_forest()[*id].digest())
+        } else {
+            None
+        }
+    }
 }
 
 /// Conversions
