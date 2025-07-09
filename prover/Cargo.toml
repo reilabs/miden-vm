@@ -1,8 +1,8 @@
 [package]
 name = "miden-prover"
-version = "0.15.0"
+version = "0.16.0"
 description = "Miden VM prover"
-documentation = "https://docs.rs/miden-prover/0.15.0"
+documentation = "https://docs.rs/miden-prover/0.16.0"
 readme = "README.md"
 categories = ["cryptography", "emulators", "no-std"]
 keywords = ["miden", "prover", "stark", "zkp"]
@@ -18,12 +18,7 @@ default = ["std"]
 async = ["winter-maybe-async/async"]
 concurrent = ["std", "miden-processor/concurrent", "winter-prover/concurrent"]
 metal = ["dep:miden-gpu", "dep:elsa", "dep:pollster", "concurrent", "std"]
-std = [
-    "miden-air/std",
-    "miden-debug-types/std",
-    "miden-processor/std",
-    "winter-prover/std",
-]
+std = ["miden-air/std", "miden-debug-types/std", "miden-processor/std", "winter-prover/std"]
 
 [dependencies]
 miden-air.workspace = true

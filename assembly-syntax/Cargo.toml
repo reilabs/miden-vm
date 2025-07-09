@@ -1,8 +1,8 @@
 [package]
 name = "miden-assembly-syntax"
-version = "0.15.0"
+version = "0.16.0"
 description = "Parsing and semantic analysis of the Miden Assembly language"
-documentation = "https://docs.rs/miden-assembly-syntax/0.15.0"
+documentation = "https://docs.rs/miden-assembly-syntax/0.16.0"
 readme = "README.md"
 categories = ["compilers", "no-std"]
 keywords = ["assembly", "language", "syntax", "miden"]
@@ -37,10 +37,7 @@ miden-debug-types.workspace = true
 miden-utils-diagnostics.workspace = true
 proptest = { workspace = true, optional = true }
 proptest-derive = { workspace = true, optional = true }
-regex = { version = "1.10", default-features = false, features = [
-    "unicode",
-    "perf",
-] }
+regex = { version = "1.10", default-features = false, features = ["unicode", "perf"] }
 smallvec.workspace = true
 thiserror.workspace = true
 

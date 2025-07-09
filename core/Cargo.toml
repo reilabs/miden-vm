@@ -1,8 +1,8 @@
 [package]
 name = "miden-core"
-version = "0.15.0"
+version = "0.16.0"
 description = "Miden VM core components"
-documentation = "https://docs.rs/miden-core/0.15.0"
+documentation = "https://docs.rs/miden-core/0.16.0"
 readme = "README.md"
 categories = ["emulators", "no-std"]
 keywords = ["instruction-set", "miden", "program"]
@@ -23,9 +23,9 @@ std = [
     "miden-crypto/std",
     "miden-debug-types/std",
     "miden-formatting/std",
+    "thiserror/std",
     "winter-math/std",
     "winter-utils/std",
-    "thiserror/std",
 ]
 serde = ["miden-crypto/serde", "miden-debug-types/serde", "winter-math/serde"]
 
