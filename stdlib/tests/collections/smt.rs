@@ -90,6 +90,47 @@ fn test_smt_get_multi() {
     expect_value_from_get(k1, v1, &smt);
 }
 
+#[test]
+fn test_smt_set_single_to_multi() {
+    test_utils::init_logging();
+
+    let source = "
+        use.std::collections::smt
+
+        begin
+            debug.stack.12
+            # => [V, K, R]
+            exec.smt::set
+            # => [V_old, R_new]
+            movupw.2 dropw movupw.2 dropw
+        end
+    ";
+
+    const K0: Word = word(101, 102, 103, 420);
+    const V0: Word = word(555, 666, 777, 888);
+
+    const K1: Word = word(201, 202, 203, 420);
+    const V1: Word = word(232, 332, 432, 532);
+
+    let initial_smt = Smt::with_entries([(K0, V0)]).unwrap();
+    let expected_smt = Smt::with_entries([(K0, V0), (K1, V1)]).unwrap();
+    let single_leaf = initial_smt.get_leaf(&K0);
+
+    let initial_stack: Vec<u64> = iter::empty()
+        .chain(initial_smt.root().iter())
+        .chain(K1.iter())
+        .chain(V1.iter())
+        .map(Felt::as_int)
+        .collect();
+    // => [V, K, R]
+
+    let expected_output = build_expected_stack(single_leaf.hash(), expected_smt.root());
+
+    let (store, advice_map) = build_advice_inputs(&initial_smt);
+    build_debug_test!(source, &initial_stack, &[], store, advice_map)
+        .expect_stack(&expected_output);
+}
+
 /// Tests inserting and removing key-value pairs to an SMT. We do the insert/removal twice to ensure
 /// that the removal properly updates the advice map/stack.
 #[test]
