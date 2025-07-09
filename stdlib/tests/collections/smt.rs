@@ -90,6 +90,46 @@ fn test_smt_get_multi() {
     expect_value_from_get(k1, v1, &smt);
 }
 
+#[test]
+fn test_smt_set_single_to_multi() {
+    const SOURCE: &str = "
+        use.std::collections::smt
+
+        begin
+            # => [V, K, R]
+            exec.smt::set
+            # => [V_old, R_new]
+            movupw.2 dropw movupw.2 dropw
+        end
+    ";
+
+    fn expect_second_pair(smt: Smt, key: Word, value: Word) {
+        let initial_stack: Vec<u64> = iter::empty()
+            .chain(smt.root().iter())
+            .chain(key.iter())
+            .chain(value.iter())
+            .map(Felt::as_int)
+            .collect();
+
+        let mut expected_smt = smt.clone();
+        expected_smt.insert(key, value);
+
+        let expected_output = build_expected_stack(EMPTY_WORD, expected_smt.root());
+
+        let (store, advice_map) = build_advice_inputs(&smt);
+        build_test!(SOURCE, &initial_stack, &[], store, advice_map).expect_stack(&expected_output);
+    }
+
+    const K0: Word = word(101, 102, 103, 420);
+    const V0: Word = word(555, 666, 777, 888);
+
+    const K1: Word = word(201, 202, 203, 420);
+    const V1: Word = word(232, 332, 432, 532);
+
+    expect_second_pair(Smt::with_entries([(K0, V0)]).unwrap(), K1, V1);
+    expect_second_pair(Smt::with_entries([(K1, V1)]).unwrap(), K0, V0);
+}
+
 /// Tests inserting and removing key-value pairs to an SMT. We do the insert/removal twice to ensure
 /// that the removal properly updates the advice map/stack.
 #[test]
