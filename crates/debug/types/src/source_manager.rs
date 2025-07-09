@@ -111,10 +111,10 @@ pub trait SourceManager: Debug {
     ///
     /// The returned source file is guaranteed to be owned by this manager.
     fn copy_into(&self, file: &SourceFile) -> Arc<SourceFile> {
-        if let Ok(found) = self.get(file.id()) {
-            if core::ptr::addr_eq(Arc::as_ptr(&found), file) {
-                return found;
-            }
+        if let Ok(found) = self.get(file.id())
+            && core::ptr::addr_eq(Arc::as_ptr(&found), file)
+        {
+            return found;
         }
         self.load_from_raw_parts(file.uri().clone(), file.content().clone())
     }
