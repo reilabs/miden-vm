@@ -1,5 +1,5 @@
-use processor::Digest;
-use test_utils::{
+use miden_core::Word;
+use miden_utils_testing::{
     Felt, FieldElement, MerkleTreeVC,
     crypto::{BatchMerkleProof, ElementHasher, Hasher as HasherTrait, PartialMerkleTree},
     serde::DeserializationError,
@@ -12,7 +12,7 @@ pub trait UnBatch<E: FieldElement, H: ElementHasher> {
         positions: &[usize],
         domain_size: usize,
         layer_commitments: Vec<<H as HasherTrait>::Digest>,
-    ) -> (Vec<PartialMerkleTree>, Vec<(Digest, Vec<Felt>)>);
+    ) -> (Vec<PartialMerkleTree>, Vec<(Word, Vec<Felt>)>);
 }
 
 pub struct MidenFriVerifierChannel<

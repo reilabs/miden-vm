@@ -1,0 +1,97 @@
+[package]
+name = "miden-vm"
+version = "0.16.0"
+description = "Miden virtual machine"
+documentation = "https://docs.rs/miden-vm/0.16.0"
+readme = "README.md"
+categories = ["cryptography", "emulators", "no-std"]
+keywords = ["miden", "stark", "virtual-machine", "zkp"]
+license.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "miden-vm"
+path = "src/main.rs"
+bench = false
+doctest = false
+required-features = ["executable"]
+
+[lib]
+path = "src/lib.rs"
+bench = false
+doctest = false
+
+[[bench]]
+name = "program_execution"
+required-features = ["internal"]
+harness = false
+
+[[bench]]
+name = "program_execution_fast"
+required-features = ["internal", "no_err_ctx"]
+harness = false
+
+[[bench]]
+name = "deserialize_std_lib"
+harness = false
+
+[[test]]
+name = "miden-cli"
+path = "tests/integration/main.rs"
+
+[features]
+concurrent = ["miden-prover/concurrent", "std"]
+default = ["std"]
+executable = ["dep:hex", "dep:clap", "dep:rustyline", "dep:tracing-subscriber", "internal", "serde", "std"]
+metal = ["miden-prover/metal", "std"]
+serde = ["dep:serde", "dep:serde_json"]
+std = [
+    "hex?/std",
+    "miden-assembly/std",
+    "miden-debug-types/std",
+    "miden-processor/std",
+    "miden-prover/std",
+    "miden-verifier/std",
+    "serde?/std",
+    "serde_json?/std",
+]
+# Removes proper error context from the error messages. Enable in production builds that need
+# maximal performance.
+no_err_ctx = ["miden-processor/no_err_ctx"]
+# For internal use, not meant to be used by users
+internal = ["dep:hex", "serde"]
+
+[dependencies]
+blake3 = "1.8"
+clap = { version = "4.4", features = ["derive"], optional = true }
+hex = { version = "0.4", optional = true }
+miden-assembly.workspace = true
+miden-core.workspace = true
+miden-debug-types.workspace = true
+miden-processor.workspace = true
+miden-prover.workspace = true
+miden-mast-package.workspace = true
+miden-stdlib.workspace = true
+miden-verifier.workspace = true
+rustyline = { version = "16.0", default-features = false, optional = true }
+serde = { workspace = true, optional = true }
+serde_json = { workspace = true, optional = true }
+tracing.workspace = true
+tracing-subscriber = { version = "0.3", optional = true, features = ["std", "env-filter"] }
+tracing-forest = { version = "0.1", optional = true, features = ["ansi", "smallvec"] }
+
+[dev-dependencies]
+assert_cmd = "2.0"
+criterion = { version = "0.6", features = ["async_tokio"] }
+escargot = "0.5"
+miden-utils-testing.workspace = true
+num-bigint = "0.4"
+predicates = "3.1"
+tokio = { version = "1.0", features = ["rt", "rt-multi-thread"] }
+winter-fri.workspace = true
+rand_chacha = "0.9"
+walkdir = "2.5"

@@ -1,13 +1,13 @@
 use alloc::vec::Vec;
 
-use test_utils::rand::rand_array;
-use vm_core::{Kernel, ONE, Operation, Program, StackOutputs, Word, ZERO, mast::MastForest};
+use miden_core::{Kernel, ONE, Operation, Program, StackOutputs, Word, ZERO, mast::MastForest};
+use miden_utils_testing::rand::rand_array;
 
 use super::{
     super::chiplets::init_state_from_words, ExecutionTrace, Felt, FieldElement, NUM_RAND_ROWS,
     Process, Trace,
 };
-use crate::{AdviceInputs, DefaultHost, ExecutionOptions, MemAdviceProvider, StackInputs};
+use crate::{AdviceInputs, DefaultHost, ExecutionOptions, StackInputs};
 
 mod chiplets;
 mod decoder;
@@ -22,7 +22,12 @@ mod stack;
 pub fn build_trace_from_program(program: &Program, stack_inputs: &[u64]) -> ExecutionTrace {
     let stack_inputs = StackInputs::try_from_ints(stack_inputs.iter().copied()).unwrap();
     let mut host = DefaultHost::default();
-    let mut process = Process::new(Kernel::default(), stack_inputs, ExecutionOptions::default());
+    let mut process = Process::new(
+        Kernel::default(),
+        stack_inputs,
+        AdviceInputs::default(),
+        ExecutionOptions::default(),
+    );
     process.execute(program, &mut host).unwrap();
     ExecutionTrace::new(process, StackOutputs::default())
 }
@@ -48,9 +53,9 @@ pub fn build_trace_from_ops_with_inputs(
     stack_inputs: StackInputs,
     advice_inputs: AdviceInputs,
 ) -> ExecutionTrace {
-    let advice_provider = MemAdviceProvider::from(advice_inputs);
-    let mut host = DefaultHost::new(advice_provider);
-    let mut process = Process::new(Kernel::default(), stack_inputs, ExecutionOptions::default());
+    let mut host = DefaultHost::default();
+    let mut process =
+        Process::new(Kernel::default(), stack_inputs, advice_inputs, ExecutionOptions::default());
 
     let mut mast_forest = MastForest::new();
     let basic_block_id = mast_forest.add_block(operations, None).unwrap();

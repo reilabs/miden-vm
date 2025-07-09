@@ -14,7 +14,7 @@ impl Process {
     /// the first and second positions on the stack, c1 and c2 to the third and fourth positions,
     /// and leaves the rest of the stack unchanged.
     pub(super) fn op_ext2mul(&mut self) -> Result<(), ExecutionError> {
-        let [a0, a1, b0, b1] = self.stack.get_word(0);
+        let [a0, a1, b0, b1] = self.stack.get_word(0).into();
         self.stack.set(0, b1);
         self.stack.set(1, b0);
         self.stack.set(2, (b0 + b1) * (a1 + a0) - b0 * a0);
@@ -29,15 +29,11 @@ impl Process {
 
 #[cfg(test)]
 mod tests {
-    type QuadFelt = QuadExtension<Felt>;
-    use test_utils::rand::rand_value;
-    use vm_core::{QuadExtension, mast::MastForest};
+    use miden_core::{Operation, QuadFelt, ZERO, mast::MastForest};
+    use miden_utils_testing::rand::rand_value;
 
-    use super::{
-        super::{Felt, MIN_STACK_DEPTH, Operation},
-        Process,
-    };
-    use crate::{DefaultHost, StackInputs, ZERO};
+    use super::*;
+    use crate::{DefaultHost, StackInputs, operations::MIN_STACK_DEPTH};
 
     // ARITHMETIC OPERATIONS
     // --------------------------------------------------------------------------------------------

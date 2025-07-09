@@ -9,10 +9,10 @@ use miden_air::{
         V_1_1_IDX, V_2_0_IDX, V_2_1_IDX,
     },
 };
-use vm_core::{FieldElement, mast::BasicBlockNode};
+use miden_core::{Felt, FieldElement, QuadFelt, Word};
 
 use crate::{
-    ContextId, ExecutionError, Felt, QuadFelt, Word,
+    ContextId, ExecutionError,
     chiplets::ace::{
         MAX_NUM_ACE_WIRES,
         instruction::{Op, decode_instruction},
@@ -118,26 +118,23 @@ impl CircuitEvaluation {
         &mut self,
         ptr: Felt,
         instruction: Felt,
-        error_ctx: &ErrorContext<'_, BasicBlockNode>,
+        err_ctx: &impl ErrorContext,
     ) -> Result<(), ExecutionError> {
         // Decode instruction, ensuring it is valid
         let (id_l, id_r, op) = decode_instruction(instruction).ok_or_else(|| {
-            ExecutionError::failed_arithmetic_evaluation(
-                error_ctx,
-                AceError::FailedDecodeInstruction,
-            )
+            ExecutionError::failed_arithmetic_evaluation(err_ctx, AceError::FailedDecodeInstruction)
         })?;
 
         // Read value of id_l from wire bus, increasing its multiplicity
         let v_l = self.wire_bus.read_value(id_l).ok_or_else(|| {
-            ExecutionError::failed_arithmetic_evaluation(error_ctx, AceError::FailedWireBusRead)
+            ExecutionError::failed_arithmetic_evaluation(err_ctx, AceError::FailedWireBusRead)
         })?;
         let id_l = Felt::from(id_l);
         self.col_wire_left.push(id_l, v_l);
 
         // Read value of id_r from wire bus, increasing its multiplicity
         let v_r = self.wire_bus.read_value(id_r).ok_or_else(|| {
-            ExecutionError::failed_arithmetic_evaluation(error_ctx, AceError::FailedWireBusRead)
+            ExecutionError::failed_arithmetic_evaluation(err_ctx, AceError::FailedWireBusRead)
         })?;
         let id_r = Felt::from(id_r);
         self.col_wire_right.push(id_r, v_r);

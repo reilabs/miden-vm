@@ -2,11 +2,11 @@ use miden_air::trace::{
     AUX_TRACE_RAND_ELEMENTS,
     decoder::{P1_COL_IDX, P2_COL_IDX, P3_COL_IDX},
 };
-use test_utils::rand::rand_array;
-use vm_core::{
+use miden_core::{
     FieldElement, ONE, Operation, Program, Word, ZERO,
     mast::{MastForest, MastNode},
 };
+use miden_utils_testing::rand::rand_array;
 
 use super::{
     super::{
@@ -329,9 +329,8 @@ fn decoder_p2_span_with_respan() {
     let aux_columns = trace.build_aux_trace(&alphas).unwrap();
     let p2 = aux_columns.get_column(P2_COL_IDX);
 
-    let row_values = [
-        BlockHashTableRow::new_test(ZERO, program.hash().into(), false, false).collapse(&alphas)
-    ];
+    let row_values =
+        [BlockHashTableRow::new_test(ZERO, program.hash(), false, false).collapse(&alphas)];
 
     // make sure the first entry is initialized to program hash
     let mut expected_value = row_values[0];
@@ -373,11 +372,9 @@ fn decoder_p2_join() {
     let p2 = aux_columns.get_column(P2_COL_IDX);
 
     let row_values = [
-        BlockHashTableRow::new_test(ZERO, join.digest().into(), false, false).collapse(&alphas),
-        BlockHashTableRow::new_test(ONE, basic_block_1.digest().into(), true, false)
-            .collapse(&alphas),
-        BlockHashTableRow::new_test(ONE, basic_block_2.digest().into(), false, false)
-            .collapse(&alphas),
+        BlockHashTableRow::new_test(ZERO, join.digest(), false, false).collapse(&alphas),
+        BlockHashTableRow::new_test(ONE, basic_block_1.digest(), true, false).collapse(&alphas),
+        BlockHashTableRow::new_test(ONE, basic_block_2.digest(), false, false).collapse(&alphas),
     ];
 
     // make sure the first entry is initialized to program hash
@@ -436,9 +433,8 @@ fn decoder_p2_split_true() {
     let p2 = aux_columns.get_column(P2_COL_IDX);
 
     let row_values = [
-        BlockHashTableRow::new_test(ZERO, program.hash().into(), false, false).collapse(&alphas),
-        BlockHashTableRow::new_test(ONE, basic_block_1.digest().into(), false, false)
-            .collapse(&alphas),
+        BlockHashTableRow::new_test(ZERO, program.hash(), false, false).collapse(&alphas),
+        BlockHashTableRow::new_test(ONE, basic_block_1.digest(), false, false).collapse(&alphas),
     ];
 
     // make sure the first entry is initialized to program hash
@@ -492,9 +488,8 @@ fn decoder_p2_split_false() {
     let p2 = aux_columns.get_column(P2_COL_IDX);
 
     let row_values = [
-        BlockHashTableRow::new_test(ZERO, program.hash().into(), false, false).collapse(&alphas),
-        BlockHashTableRow::new_test(ONE, basic_block_2.digest().into(), false, false)
-            .collapse(&alphas),
+        BlockHashTableRow::new_test(ZERO, program.hash(), false, false).collapse(&alphas),
+        BlockHashTableRow::new_test(ONE, basic_block_2.digest(), false, false).collapse(&alphas),
     ];
 
     // make sure the first entry is initialized to program hash
@@ -553,16 +548,12 @@ fn decoder_p2_loop_with_repeat() {
     let a_9 = Felt::new(9); // address of the JOIN block in the first iteration
     let a_33 = Felt::new(33); // address of the JOIN block in the second iteration
     let row_values = [
-        BlockHashTableRow::new_test(ZERO, program.hash().into(), false, false).collapse(&alphas),
-        BlockHashTableRow::new_test(ONE, join.digest().into(), false, true).collapse(&alphas),
-        BlockHashTableRow::new_test(a_9, basic_block_1.digest().into(), true, false)
-            .collapse(&alphas),
-        BlockHashTableRow::new_test(a_9, basic_block_2.digest().into(), false, false)
-            .collapse(&alphas),
-        BlockHashTableRow::new_test(a_33, basic_block_1.digest().into(), true, false)
-            .collapse(&alphas),
-        BlockHashTableRow::new_test(a_33, basic_block_2.digest().into(), false, false)
-            .collapse(&alphas),
+        BlockHashTableRow::new_test(ZERO, program.hash(), false, false).collapse(&alphas),
+        BlockHashTableRow::new_test(ONE, join.digest(), false, true).collapse(&alphas),
+        BlockHashTableRow::new_test(a_9, basic_block_1.digest(), true, false).collapse(&alphas),
+        BlockHashTableRow::new_test(a_9, basic_block_2.digest(), false, false).collapse(&alphas),
+        BlockHashTableRow::new_test(a_33, basic_block_1.digest(), true, false).collapse(&alphas),
+        BlockHashTableRow::new_test(a_33, basic_block_2.digest(), false, false).collapse(&alphas),
     ];
 
     // make sure the first entry is initialized to program hash
@@ -826,7 +817,7 @@ impl BlockStackTableRow {
             parent_id,
             is_loop,
             parent_ctx: ContextId::root(),
-            parent_fn_hash: vm_core::EMPTY_WORD,
+            parent_fn_hash: miden_core::EMPTY_WORD,
             parent_fmp: ZERO,
             parent_stack_depth: 0,
             parent_next_overflow_addr: ZERO,

@@ -4,11 +4,10 @@ use miden_air::trace::chiplets::bitwise::{
     A_COL_IDX, A_COL_RANGE, B_COL_IDX, B_COL_RANGE, BITWISE_AND, BITWISE_XOR, OP_CYCLE_LEN,
     OUTPUT_COL_IDX, PREV_OUTPUT_COL_IDX, TRACE_WIDTH,
 };
-use test_utils::rand::rand_value;
-use vm_core::ZERO;
+use miden_core::ZERO;
+use miden_utils_testing::rand::rand_value;
 
 use super::{Bitwise, Felt, TraceFragment};
-use crate::ErrorContext;
 
 #[test]
 fn bitwise_init() {
@@ -23,7 +22,7 @@ fn bitwise_and() {
     let a = rand_u32();
     let b = rand_u32();
 
-    let result = bitwise.u32and(a, b, &ErrorContext::default()).unwrap();
+    let result = bitwise.u32and(a, b, &()).unwrap();
     assert_eq!(a.as_int() & b.as_int(), result.as_int());
 
     // --- check generated trace ----------------------------------------------
@@ -66,7 +65,7 @@ fn bitwise_xor() {
     let a = rand_u32();
     let b = rand_u32();
 
-    let result = bitwise.u32xor(a, b, &ErrorContext::default()).unwrap();
+    let result = bitwise.u32xor(a, b, &()).unwrap();
     assert_eq!(a.as_int() ^ b.as_int(), result.as_int());
 
     // --- check generated trace ----------------------------------------------
@@ -110,15 +109,15 @@ fn bitwise_multiple() {
     let b = [rand_u32(), rand_u32(), rand_u32()];
 
     // first operation: AND
-    let result0 = bitwise.u32and(a[0], b[0], &ErrorContext::default()).unwrap();
+    let result0 = bitwise.u32and(a[0], b[0], &()).unwrap();
     assert_eq!(a[0].as_int() & b[0].as_int(), result0.as_int());
 
     // second operation: XOR
-    let result1 = bitwise.u32xor(a[1], b[1], &ErrorContext::default()).unwrap();
+    let result1 = bitwise.u32xor(a[1], b[1], &()).unwrap();
     assert_eq!(a[1].as_int() ^ b[1].as_int(), result1.as_int());
 
     // third operation: AND
-    let result2 = bitwise.u32and(a[2], b[2], &ErrorContext::default()).unwrap();
+    let result2 = bitwise.u32and(a[2], b[2], &()).unwrap();
     assert_eq!(a[2].as_int() & b[2].as_int(), result2.as_int());
 
     // --- check generated trace ----------------------------------------------

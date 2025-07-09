@@ -1,14 +1,13 @@
 use std::{sync::Arc, vec};
 
-use assembly::{Assembler, DefaultSourceManager, utils::Serializable};
 use miden_air::{Felt, ProvingOptions, RowIndex};
-use miden_stdlib::{EVENT_FALCON_SIG_TO_STACK, StdLibrary, falcon_sign};
-use processor::{
-    AdviceInputs, Digest, ExecutionError, MemAdviceProvider, Program, ProgramInfo, StackInputs,
-    crypto::RpoRandomCoin,
+use miden_assembly::{Assembler, DefaultSourceManager, utils::Serializable};
+use miden_core::{StarkField, ZERO};
+use miden_processor::{
+    AdviceInputs, ExecutionError, Program, ProgramInfo, StackInputs, crypto::RpoRandomCoin,
 };
-use rand::{Rng, rng};
-use test_utils::{
+use miden_stdlib::{EVENT_FALCON_SIG_TO_STACK, StdLibrary, falcon_sign};
+use miden_utils_testing::{
     Word,
     crypto::{
         MerkleStore, Rpo256,
@@ -17,9 +16,9 @@ use test_utils::{
     expect_exec_error_matches,
     host::TestHost,
     proptest::proptest,
-    rand::rand_vector,
+    rand::rand_value,
 };
-use vm_core::{StarkField, ZERO};
+use rand::{Rng, rng};
 
 /// Modulus used for rpo falcon 512.
 const M: u64 = 12289;
@@ -171,7 +170,7 @@ fn test_move_sig_to_adv_stack() {
     let seed = Word::default();
     let mut rng = RpoRandomCoin::new(seed);
     let secret_key = SecretKey::with_rng(&mut rng);
-    let message: Word = rand_vector::<Felt>(4).try_into().unwrap();
+    let message = rand_value::<Word>();
 
     let source = "
     use.std::crypto::dsa::rpo_falcon512
@@ -182,14 +181,11 @@ fn test_move_sig_to_adv_stack() {
     end
     ";
 
-    let public_key = {
-        let pk: Word = secret_key.public_key().into();
-        pk.into()
-    };
+    let public_key = secret_key.public_key().into();
     let secret_key_bytes = secret_key.to_bytes();
 
-    let advice_map: Vec<(Digest, Vec<Felt>)> = {
-        let sig_key = Rpo256::merge(&[message.into(), public_key]);
+    let advice_map: Vec<(Word, Vec<Felt>)> = {
+        let sig_key = Rpo256::merge(&[message, public_key]);
         let sk_felts = secret_key_bytes.iter().map(|a| Felt::new(*a as u64)).collect::<Vec<Felt>>();
         let signature = falcon_sign(&sk_felts, message).expect("failed to sign message");
 
@@ -218,7 +214,7 @@ fn falcon_execution() {
     let seed = Word::default();
     let mut rng = RpoRandomCoin::new(seed);
     let sk = SecretKey::with_rng(&mut rng);
-    let message = rand_vector::<Felt>(4).try_into().unwrap();
+    let message = rand_value::<Word>();
     let (source, op_stack, adv_stack, store, advice_map) = generate_test(sk, message);
 
     let test = build_test!(&source, &op_stack, &adv_stack, store, advice_map.into_iter());
@@ -228,26 +224,26 @@ fn falcon_execution() {
 #[test]
 fn falcon_prove_verify() {
     let sk = SecretKey::new();
-    let message = rand_vector::<Felt>(4).try_into().unwrap();
+    let message = rand_value::<Word>();
     let (source, op_stack, _, _, advice_map) = generate_test(sk, message);
 
     let program: Program = Assembler::default()
-        .with_library(StdLibrary::default())
+        .with_dynamic_library(StdLibrary::default())
         .expect("failed to load stdlib")
         .assemble_program(source)
         .expect("failed to compile test source");
 
     let stack_inputs = StackInputs::try_from_ints(op_stack).expect("failed to create stack inputs");
     let advice_inputs = AdviceInputs::default().with_map(advice_map);
-    let advice_provider = MemAdviceProvider::from(advice_inputs);
-    let mut host = TestHost::new(advice_provider);
+    let mut host = TestHost::default();
     host.load_mast_forest(StdLibrary::default().mast_forest().clone())
         .expect("failed to load mast forest");
 
     let options = ProvingOptions::with_96_bit_security(false);
-    let (stack_outputs, proof) = test_utils::prove(
+    let (stack_outputs, proof) = miden_utils_testing::prove(
         &program,
         stack_inputs.clone(),
+        advice_inputs,
         &mut host,
         options,
         Arc::new(DefaultSourceManager::default()),
@@ -255,7 +251,7 @@ fn falcon_prove_verify() {
     .expect("failed to generate proof");
 
     let program_info = ProgramInfo::from(program);
-    let result = test_utils::verify(program_info, stack_inputs, stack_outputs, proof);
+    let result = miden_utils_testing::verify(program_info, stack_inputs, stack_outputs, proof);
 
     assert!(result.is_ok(), "error: {result:?}");
 }
@@ -264,7 +260,7 @@ fn falcon_prove_verify() {
 fn generate_test(
     sk: SecretKey,
     message: Word,
-) -> (String, Vec<u64>, Vec<u64>, MerkleStore, Vec<(Digest, Vec<Felt>)>) {
+) -> (String, Vec<u64>, Vec<u64>, MerkleStore, Vec<(Word, Vec<Felt>)>) {
     let source = format!(
         "
     use.std::crypto::dsa::rpo_falcon512
@@ -277,12 +273,11 @@ fn generate_test(
     );
 
     let pk: Word = sk.public_key().into();
-    let pk: Digest = pk.into();
     let sk_bytes = sk.to_bytes();
 
     let to_adv_map = sk_bytes.iter().map(|a| Felt::new(*a as u64)).collect::<Vec<Felt>>();
 
-    let advice_map: Vec<(Digest, Vec<Felt>)> = vec![(pk, to_adv_map)];
+    let advice_map: Vec<(Word, Vec<Felt>)> = vec![(pk, to_adv_map)];
 
     let mut op_stack = vec![];
     let message = message.into_iter().map(|a| a.as_int()).collect::<Vec<u64>>();

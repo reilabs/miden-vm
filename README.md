@@ -22,7 +22,7 @@ Miden VM is a zero-knowledge virtual machine written in Rust. For any program ex
 
 ### Status and features
 
-Miden VM is currently on release v0.15. In this release, most of the core features of the VM have been stabilized, and most of the STARK proof generation has been implemented. While we expect to keep making changes to the VM internals, the external interfaces should remain relatively stable, and we will do our best to minimize the amount of breaking changes going forward.
+Miden VM is currently on release v0.16. In this release, most of the core features of the VM have been stabilized, and most of the STARK proof generation has been implemented. While we expect to keep making changes to the VM internals, the external interfaces should remain relatively stable, and we will do our best to minimize the amount of breaking changes going forward.
 
 The next version of the VM is being developed in the [next](https://github.com/0xMiden/miden-vm/tree/next) branch. There is also a documentation for the latest features and changes in the next branch [documentation next branch](https://0xMiden.github.io/miden-vm/intro/main.html).
 
@@ -92,7 +92,7 @@ A few general notes on performance:
 
 ### Single-core prover performance
 
-When executed on a single CPU core, the current version of Miden VM operates at around 20 - 25 KHz. In the benchmarks below, the VM executes a [Fibonacci calculator](miden/README.md#fibonacci-calculator) program on Apple M1 Pro CPU in a single thread. The generated proofs have a target security level of 96 bits.
+When executed on a single CPU core, the current version of Miden VM operates at around 20 - 25 KHz. In the benchmarks below, the VM executes a [Fibonacci calculator](miden-vm/README.md#fibonacci-calculator) program on Apple M1 Pro CPU in a single thread. The generated proofs have a target security level of 96 bits.
 
 |   VM cycles    | Execution time | Proving time | RAM consumed | Proof size |
 | :------------: | :------------: | :----------: | :----------: | :--------: |
@@ -179,6 +179,5 @@ StarkWare's STARK tutorial:
 
 - [STARK 101](https://starkware.co/stark-101/)
 
-## License
-
-This project is [MIT licensed](./LICENSE).
+## Licensing
+Any contribution intentionally submitted for inclusion in this repository, as defined in the Apache-2.0 license, shall be dual licensed under the [MIT](./LICENSE-MIT) and [Apache 2.0](./LICENSE-APACHE) licenses, without any additional terms or conditions.

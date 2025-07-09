@@ -1,17 +1,19 @@
 use alloc::collections::BTreeMap;
 
+use miden_core::Word;
 use pretty_assertions::assert_eq;
-use vm_core::crypto::hash::RpoDigest;
 
 use super::*;
-use crate::{MastForestStore, MemAdviceProvider, MemMastForestStore, MemoryAddress, ProcessState};
+use crate::{
+    AsyncHost, BaseHost, MastForestStore, MemMastForestStore, MemoryAddress, ProcessState, SyncHost,
+};
 
 #[test]
 fn test_advice_provider() {
     let kernel_source = "
         export.foo
             push.2323 mem_store.100 trace.11
-        end 
+        end
     ";
 
     let program_source = "
@@ -33,8 +35,8 @@ fn test_advice_provider() {
     # Tests different cases of batch sizes
     proc.basic_block
         # batch with 1 group
-        swap drop swap trace.1 
-        
+        swap drop swap trace.1
+
         call.noop
 
         # batch with 2 groups
@@ -58,7 +60,7 @@ fn test_advice_provider() {
         call.noop
 
         # basic block with >1 batches (where clk needs to be incremented in-between batches due to the inserted RESPAN)
-        push.0 push.1 push.2 push.3 push.4 push.5 push.6    trace.6 
+        push.0 push.1 push.2 push.3 push.4 push.5 push.6    trace.6
         drop drop drop drop drop drop drop drop drop        trace.7
     end
 
@@ -133,7 +135,7 @@ fn test_advice_provider() {
         exec.control_flow
 
         exec.truncate_stack
-        trace.22 
+        trace.22
     end
     ";
 
@@ -153,14 +155,15 @@ fn test_advice_provider() {
 
     // fast processor
     let mut fast_host = ConsistencyHost::new(kernel_lib.mast_forest().clone());
-    let processor = FastProcessor::new_debug(&stack_inputs);
-    let fast_stack_outputs = processor.execute(&program, &mut fast_host).unwrap();
+    let processor = FastProcessor::new_debug(&stack_inputs, AdviceInputs::default());
+    let fast_stack_outputs = processor.execute_sync(&program, &mut fast_host).unwrap();
 
     // slow processor
     let mut slow_host = ConsistencyHost::new(kernel_lib.mast_forest().clone());
     let mut slow_processor = Process::new(
         kernel_lib.kernel().clone(),
         StackInputs::new(stack_inputs).unwrap(),
+        AdviceInputs::default(),
         ExecutionOptions::default().with_tracing(),
     );
     let slow_stack_outputs = slow_processor.execute(&program, &mut slow_host).unwrap();
@@ -200,8 +203,8 @@ struct ProcessStateSnapshot {
     mem_state: Vec<(MemoryAddress, Felt)>,
 }
 
-impl From<ProcessState<'_>> for ProcessStateSnapshot {
-    fn from(state: ProcessState) -> Self {
+impl From<&mut ProcessState<'_>> for ProcessStateSnapshot {
+    fn from(state: &mut ProcessState) -> Self {
         ProcessStateSnapshot {
             clk: state.clk(),
             ctx: state.ctx(),
@@ -223,42 +226,60 @@ struct ConsistencyHost {
     /// A map of trace ID to a list of snapshots. A single trace ID can be associated with multiple
     /// snapshots for example if it's used in a loop.
     snapshots: BTreeMap<u32, Vec<ProcessStateSnapshot>>,
-    advice_provider: MemAdviceProvider,
     store: MemMastForestStore,
 }
 
 impl ConsistencyHost {
     fn new(kernel_forest: Arc<MastForest>) -> Self {
         let mut store = MemMastForestStore::default();
-        store.insert(kernel_forest);
+        store.insert(kernel_forest.clone());
 
-        Self {
-            snapshots: BTreeMap::new(),
-            advice_provider: MemAdviceProvider::default(),
-            store,
-        }
+        Self { snapshots: BTreeMap::new(), store }
     }
 }
 
-impl Host for ConsistencyHost {
-    type AdviceProvider = MemAdviceProvider;
-
-    fn advice_provider(&self) -> &Self::AdviceProvider {
-        &self.advice_provider
-    }
-
-    fn advice_provider_mut(&mut self) -> &mut Self::AdviceProvider {
-        &mut self.advice_provider
-    }
-
-    fn get_mast_forest(&self, node_digest: &RpoDigest) -> Option<Arc<MastForest>> {
-        self.store.get(node_digest)
-    }
-
-    fn on_trace(&mut self, process: ProcessState, trace_id: u32) -> Result<(), ExecutionError> {
+impl BaseHost for ConsistencyHost {
+    fn on_trace(
+        &mut self,
+        process: &mut ProcessState,
+        trace_id: u32,
+    ) -> Result<(), ExecutionError> {
         let snapshot = ProcessStateSnapshot::from(process);
         self.snapshots.entry(trace_id).or_default().push(snapshot);
 
         Ok(())
+    }
+}
+
+impl SyncHost for ConsistencyHost {
+    fn get_mast_forest(&self, node_digest: &Word) -> Option<Arc<MastForest>> {
+        self.store.get(node_digest)
+    }
+
+    fn on_event(
+        &mut self,
+        _process: &mut ProcessState<'_>,
+        _event_id: u32,
+        _err_ctx: &impl ErrorContext,
+    ) -> Result<(), ExecutionError> {
+        Ok(())
+    }
+}
+
+impl AsyncHost for ConsistencyHost {
+    async fn get_mast_forest(&self, node_digest: &Word) -> Option<Arc<MastForest>> {
+        self.store.get(node_digest)
+    }
+
+    // Note: clippy complains about this not using the `async` keyword, but if we use `async`, it
+    // doesn't compile.
+    #[allow(clippy::manual_async_fn)]
+    fn on_event(
+        &mut self,
+        _process: &mut ProcessState<'_>,
+        _event_id: u32,
+        _err_ctx: &impl ErrorContext,
+    ) -> impl Future<Output = Result<(), ExecutionError>> + Send {
+        async { Ok(()) }
     }
 }

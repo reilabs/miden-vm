@@ -24,7 +24,7 @@ use miden_air::{
         main_trace::MainTrace,
     },
 };
-use vm_core::{
+use miden_core::{
     Kernel, ONE, OPCODE_ACE, OPCODE_CALL, OPCODE_DYN, OPCODE_DYNCALL, OPCODE_END,
     OPCODE_HORNERBASE, OPCODE_HORNEREXT, OPCODE_HPERM, OPCODE_JOIN, OPCODE_LOOP, OPCODE_MLOAD,
     OPCODE_MLOADW, OPCODE_MPVERIFY, OPCODE_MRUPDATE, OPCODE_MSTORE, OPCODE_MSTOREW, OPCODE_MSTREAM,
@@ -196,7 +196,7 @@ where
         ctx: main_trace.ctx(row),
         addr: main_trace.stack_element(0, row),
         clk: main_trace.clk(row),
-        word: main_trace.decoder_hasher_state_first_half(row),
+        word: main_trace.decoder_hasher_state_first_half(row).into(),
         source: if op_code_felt == OPCODE_DYNCALL.into() {
             "dyncall"
         } else {

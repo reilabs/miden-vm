@@ -50,7 +50,6 @@ assertion failed: `(left matches right)`
 }
 
 pub mod chiplets;
-pub mod debuginfo;
 pub mod errors;
 
 mod program;
@@ -72,8 +71,8 @@ pub mod crypto {
         pub use miden_crypto::hash::{
             Digest, ElementHasher, Hasher,
             blake::{Blake3_160, Blake3_192, Blake3_256, Blake3Digest},
-            rpo::{Rpo256, RpoDigest},
-            rpx::{Rpx256, RpxDigest},
+            rpo::Rpo256,
+            rpx::Rpx256,
         };
     }
 
@@ -90,11 +89,12 @@ pub mod crypto {
 
 pub mod mast;
 
-pub use math::{
+pub use winter_math::{
     ExtensionOf, FieldElement, StarkField, ToElements,
     fields::{QuadExtension, f64::BaseElement as Felt},
     polynom,
 };
+pub type QuadFelt = QuadExtension<Felt>;
 
 pub mod prettier {
     pub use miden_formatting::{prettier::*, pretty_via_display, pretty_via_to_string};
@@ -118,7 +118,7 @@ pub mod prettier {
 mod operations;
 pub use operations::{
     AssemblyOp, DebugOptions, Decorator, DecoratorIterator, DecoratorList, Operation,
-    SignatureKind, opcode_constants::*,
+    opcode_constants::*,
 };
 
 pub mod stack;

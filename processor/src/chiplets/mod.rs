@@ -1,10 +1,7 @@
 use alloc::vec::Vec;
 
-use miden_air::{
-    RowIndex,
-    trace::chiplets::hasher::{Digest, HasherState},
-};
-use vm_core::{Kernel, mast::OpBatch};
+use miden_air::{RowIndex, trace::chiplets::hasher::HasherState};
+use miden_core::{Kernel, mast::OpBatch};
 
 use super::{
     CHIPLETS_WIDTH, ChipletsTrace, EMPTY_WORD, ExecutionError, Felt, FieldElement, ONE,
@@ -118,7 +115,7 @@ mod tests;
 ///             | . + . +---+---+----------------------------------------------------+----+
 ///             | . | . | 1 | 0 |                                                         |
 ///             | . | . | . | . |          ACE chiplet                                    |
-///             | . | . | . | . |            16 columns                                   |   
+///             | . | . | . | . |            16 columns                                   |
 ///             | . | . | . | . |        constraint degree 5                              |
 ///             | . | . | . | 0 |                                                         |
 ///             | . + . | . +---+---+---------------------------+-------------------------+

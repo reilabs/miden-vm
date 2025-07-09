@@ -1,7 +1,7 @@
 use alloc::vec::Vec;
 
 use miden_air::RowIndex;
-use vm_core::{WORD_SIZE, Word, stack::MIN_STACK_DEPTH};
+use miden_core::{WORD_SIZE, Word, stack::MIN_STACK_DEPTH};
 
 use super::{
     ExecutionError, Felt, FieldElement, ONE, STACK_TRACE_WIDTH, StackInputs, StackOutputs, ZERO,
@@ -169,6 +169,7 @@ impl Stack {
             self.get(offset + 1),
             self.get(offset),
         ]
+        .into()
     }
 
     /// Sets the value at the specified position on the stack at the next clock cycle.
