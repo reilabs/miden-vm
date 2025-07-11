@@ -2,6 +2,10 @@
 
 ## 0.17.0 (TBD)
 
+#### Enhancements
+
+- Implement `copy_digest` and `hash_memory_double_words` procedures in the `std::crypto::hashes::rpo` module ([#1971](https://github.com/0xMiden/miden-vm/pull/1971)).
+
 #### Changes
 
 - [BREAKING] Incremented MSRV to 1.88.
