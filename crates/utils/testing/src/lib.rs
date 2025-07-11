@@ -11,6 +11,7 @@ use alloc::{
     sync::Arc,
     vec::Vec,
 };
+use core::iter;
 
 use miden_assembly::{KernelLibrary, Library, Parse, diagnostics::reporting::PrintDiagnostic};
 pub use miden_assembly::{
@@ -168,6 +169,7 @@ macro_rules! assert_assembler_diagnostic {
 ///   which contains the specified substring.
 /// - Execution error test: check that running a program compiled from the given source causes an
 ///   ExecutionError which contains the specified substring.
+#[derive(Debug)]
 pub struct Test {
     pub source_manager: Arc<dyn SourceManager + Send + Sync>,
     pub source: Arc<SourceFile>,
@@ -207,13 +209,61 @@ impl Test {
     // TEST METHODS
     // --------------------------------------------------------------------------------------------
 
+    /// General purpose method to assert expectations of the final program state.
+    ///
+    /// [`Test::expect_stack()`] and [`Test::expect_stack_and_memory()`] are shortcuts for this
+    /// method.
+    #[track_caller]
+    pub fn expect(&self, expectations: Expect) {
+        let Expect { stack, mem, cycles } = expectations;
+
+        // Compile the program.
+        let (program, mut host) = self.get_program_and_host();
+
+        let mut process = self.get_process(&program);
+
+        // Execute the test.
+        let stack_result = process.execute(&program, &mut host).unwrap();
+        // Validate state.
+        self.assert_outputs_with_fast_processor(&stack_result);
+
+        // Validate expectations.
+
+        if let Some((start_addr, mem)) = mem {
+            for (addr, mem_value) in iter::zip(range(start_addr as usize, mem.len()), mem.iter()) {
+                let mem_state = process
+                    .chiplets
+                    .memory
+                    .get_value(ContextId::root(), addr as u32)
+                    .unwrap_or(ZERO);
+
+                assert_eq!(
+                    *mem_value,
+                    mem_state.as_int(),
+                    "Expected memory [{addr}] => {mem_value:?}, found {mem_state:?}",
+                );
+            }
+        }
+
+        let trace = ExecutionTrace::new(process, stack_result);
+
+        if let Some(stack) = stack {
+            let found = trace.last_stack_state().as_int_vec();
+            let expected = resize_to_min_stack_depth(stack);
+            assert_eq!(expected, found, "Expected stack to be {expected:?}, found {found:?}");
+        }
+
+        if let Some(expected) = cycles {
+            let found = trace.get_trace_len();
+            assert_eq!(expected, found, "Expected execution cycles {expected:?}, found {found:?}");
+        }
+    }
+
     /// Builds a final stack from the provided stack-ordered array and asserts that executing the
     /// test will result in the expected final stack state.
     #[track_caller]
     pub fn expect_stack(&self, final_stack: &[u64]) {
-        let result = self.get_last_stack_state().as_int_vec();
-        let expected = resize_to_min_stack_depth(final_stack);
-        assert_eq!(expected, result, "Expected stack to be {:?}, found {:?}", expected, result);
+        self.expect(Expect::with_stack(final_stack));
     }
 
     /// Executes the test and validates that the process memory has the elements of `expected_mem`
@@ -226,47 +276,8 @@ impl Test {
         mem_start_addr: u32,
         expected_mem: &[u64],
     ) {
-        // compile the program
-        let (program, kernel) = self.compile().expect("Failed to compile test source.");
-        let mut host = TestHost::default();
-        if let Some(kernel) = kernel {
-            host.load_mast_forest(kernel.mast_forest().clone()).unwrap();
-        }
-        for library in &self.libraries {
-            host.load_mast_forest(library.mast_forest().clone()).unwrap();
-        }
-
-        // execute the test
-        let mut process = Process::new(
-            program.kernel().clone(),
-            self.stack_inputs.clone(),
-            self.advice_inputs.clone(),
-            ExecutionOptions::default().with_debugging(self.in_debug_mode),
-        )
-        .with_source_manager(self.source_manager.clone());
-        process.execute(&program, &mut host).unwrap();
-
-        // validate the memory state
-        for (addr, mem_value) in
-            (range(mem_start_addr as usize, expected_mem.len())).zip(expected_mem.iter())
-        {
-            let mem_state = process
-                .chiplets
-                .memory
-                .get_value(ContextId::root(), addr as u32)
-                .unwrap_or(ZERO);
-            assert_eq!(
-                *mem_value,
-                mem_state.as_int(),
-                "Expected memory [{}] => {:?}, found {:?}",
-                addr,
-                mem_value,
-                mem_state
-            );
-        }
-
-        // validate the stack states
-        self.expect_stack(final_stack);
+        let expectations = Expect::default().mem(mem_start_addr, expected_mem).stack(final_stack);
+        self.expect(expectations);
     }
 
     /// Asserts that executing the test inside a proptest results in the expected final stack state.
@@ -337,13 +348,7 @@ impl Test {
         let (program, mut host) = self.get_program_and_host();
 
         // slow processor
-        let mut process = Process::new(
-            program.kernel().clone(),
-            self.stack_inputs.clone(),
-            self.advice_inputs.clone(),
-            ExecutionOptions::default().with_debugging(self.in_debug_mode),
-        )
-        .with_source_manager(self.source_manager.clone());
+        let mut process = self.get_process(&program);
         let slow_stack_result = process.execute(&program, &mut host);
 
         // compare fast and slow processors' stack outputs
@@ -365,13 +370,7 @@ impl Test {
     pub fn execute_process(&self) -> Result<(Process, TestHost), ExecutionError> {
         let (program, mut host) = self.get_program_and_host();
 
-        let mut process = Process::new(
-            program.kernel().clone(),
-            self.stack_inputs.clone(),
-            self.advice_inputs.clone(),
-            ExecutionOptions::default().with_debugging(self.in_debug_mode),
-        )
-        .with_source_manager(self.source_manager.clone());
+        let mut process = self.get_process(&program);
 
         let stack_result = process.execute(&program, &mut host);
         self.assert_result_with_fast_processor(&stack_result);
@@ -398,7 +397,7 @@ impl Test {
         )
         .unwrap();
 
-        self.assert_outputs_with_fast_processor(stack_outputs.clone());
+        self.assert_outputs_with_fast_processor(&stack_outputs);
 
         let program_info = ProgramInfo::from(program);
         if test_fail {
@@ -418,13 +417,7 @@ impl Test {
     pub fn execute_iter(&self) -> VmStateIterator {
         let (program, mut host) = self.get_program_and_host();
 
-        let mut process = Process::new(
-            program.kernel().clone(),
-            self.stack_inputs.clone(),
-            self.advice_inputs.clone(),
-            ExecutionOptions::default().with_debugging(self.in_debug_mode),
-        )
-        .with_source_manager(self.source_manager.clone());
+        let mut process = self.get_process(&program);
         let result = process.execute(&program, &mut host);
 
         self.assert_result_with_fast_processor(&result);
@@ -467,9 +460,21 @@ impl Test {
         (program, host)
     }
 
+    /// Returns the [`Process`] for this test, using the passed [`Program`] and the test's
+    /// configured source manager, debug mode, and stack & advice inputs.
+    fn get_process(&self, program: &Program) -> Process {
+        Process::new(
+            program.kernel().clone(),
+            self.stack_inputs.clone(),
+            self.advice_inputs.clone(),
+            ExecutionOptions::default().with_debugging(self.in_debug_mode),
+        )
+        .with_source_manager(self.source_manager.clone())
+    }
+
     /// Runs the program on the fast processor, and asserts that the stack outputs match the slow
     /// processor's stack outputs.
-    fn assert_outputs_with_fast_processor(&self, slow_stack_outputs: StackOutputs) {
+    fn assert_outputs_with_fast_processor(&self, slow_stack_outputs: &StackOutputs) {
         let (program, mut host) = self.get_program_and_host();
         let stack_inputs: Vec<Felt> = self.stack_inputs.clone().into_iter().rev().collect();
         let advice_inputs = self.advice_inputs.clone();
@@ -477,7 +482,7 @@ impl Test {
         let fast_stack_outputs = fast_process.execute_sync(&program, &mut host).unwrap();
 
         assert_eq!(
-            slow_stack_outputs, fast_stack_outputs,
+            slow_stack_outputs, &fast_stack_outputs,
             "stack outputs do not match between slow and fast processors"
         );
     }
@@ -517,6 +522,61 @@ impl Test {
                 );
             },
         }
+    }
+}
+
+/// A 'pattern' type used with [`Test::expect()`] to match on desired test results.
+#[derive(Debug, Default, Clone, PartialEq)]
+pub struct Expect<'s> {
+    /// If set, [`Test::expect()`] asserts that executing the test results in a final stack that
+    /// matches matches this stack-ordered slice.
+    pub stack: Option<&'s [u64]>,
+
+    /// `(mem_start_addr, final_mem)`. If set, [`Test::expect()`] asserts that executing the test
+    /// results in memory that, using the first tuple element as the starting address, matches the
+    /// second tuple element's contents.
+    pub mem: Option<(u32, &'s [u64])>,
+
+    /// If set, [`Test::expect()`] asserts that executing the test takes exactly this number of
+    /// cycles.
+    pub cycles: Option<usize>,
+}
+
+impl<'s> Expect<'s> {
+    // CONSTRUCTORS
+    // ============================================================================================
+
+    pub fn with_stack(stack: &'s [u64]) -> Self {
+        Self { stack: Some(stack), ..Default::default() }
+    }
+
+    pub fn with_mem(start_addr: u32, mem: &'s [u64]) -> Self {
+        Self {
+            mem: Some((start_addr, mem)),
+            ..Default::default()
+        }
+    }
+
+    pub fn with_cycles(cycles: usize) -> Self {
+        Self {
+            cycles: Some(cycles),
+            ..Default::default()
+        }
+    }
+
+    // BUILDERS
+    // ============================================================================================
+
+    pub fn stack(self, stack: &'s [u64]) -> Self {
+        Self { stack: Some(stack), ..self }
+    }
+
+    pub fn mem(self, start_addr: u32, mem: &'s [u64]) -> Self {
+        Self { mem: Some((start_addr, mem)), ..self }
+    }
+
+    pub fn cycles(self, cycles: usize) -> Self {
+        Self { cycles: Some(cycles), ..self }
     }
 }
 
