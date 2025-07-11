@@ -8,6 +8,10 @@
 - [BREAKING] Implement preliminary changes for lazy loading of external `MastForest` `AdviceMap`s ([#1949](https://github.com/0xMiden/miden-vm/issues/1949)).
 - [BREAKING] Introduce `SourceManagerSync` trait, and remove `Assembler::source_manager()` method [#1966](https://github.com/0xMiden/miden-vm/issues/1966).
 
+#### Fixes
+
+- Fix `debug.stack`, which was incorrectly printing the advice stack instead of the operand stack ([#1984](https://github.com/0xMiden/miden-vm/issues/1984)).
+
 ## 0.16.1 (2025-07-10)
 
 - Make `Process::state()` public and re-introduce `From<&Process> for ProcessState`.
