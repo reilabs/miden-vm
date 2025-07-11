@@ -14,6 +14,10 @@
 - Fixed `ExecutionOptions::default()` to set `max_cycles` correctly to `1 << 29` ([#1969](https://github.com/0xMiden/miden-vm/pull/1969)).
 - [BREAKING] Revert `get_mapped_value` return signature [(#1981)](https://github.com/0xMiden/miden-vm/issues/1981).
 
+## 0.16.2 (2025-07-11)
+
+- Fix `debug::print_vm_stack` which was returning the advice stack instead of the system stack [(#1984)](https://github.com/0xMiden/miden-vm/issues/1984).
+
 ## 0.16.1 (2025-07-10)
 
 - Make `Process::state()` public and re-introduce `From<&Process> for ProcessState`.
