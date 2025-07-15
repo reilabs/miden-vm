@@ -529,6 +529,15 @@ impl Process {
                     .find_procedure_root(callee_hash)
                     .ok_or(ExecutionError::malfored_mast_forest_in_host(callee_hash, &()))?;
 
+                // Merge the advice map of this forest into the advice provider.
+                // Note that the map may be merged multiple times if a different procedure from the
+                // same forest is called.
+                // For now, only compiled libraries contain non-empty advice maps, so for most
+                // cases, this call will be cheap.
+                self.advice
+                    .extend_map(mast_forest.advice_map())
+                    .map_err(|err| ExecutionError::advice_error(err, self.system.clk(), &()))?;
+
                 self.execute_mast_node(root_id, &mast_forest, host)?
             },
         }
