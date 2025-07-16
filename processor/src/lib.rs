@@ -53,8 +53,10 @@ use range::RangeChecker;
 
 mod host;
 pub use host::{
-    AsyncHost, BaseHost, DefaultHost, MastForestStore, MemMastForestStore, SyncHost,
+    AsyncHost, BaseHost, MastForestStore, MemMastForestStore, SyncHost,
     advice::{AdviceError, AdviceInputs, AdviceProvider},
+    default::{DefaultDebugHandler, DefaultHost, HostLibrary},
+    handlers::{DebugHandler, EventError, EventHandler, EventHandlerRegistry},
 };
 
 mod chiplets;
@@ -75,6 +77,7 @@ mod tests;
 
 mod debug;
 pub use debug::{AsmOpInfo, VmState, VmStateIterator};
+
 // RE-EXPORTS
 // ================================================================================================
 
