@@ -119,6 +119,17 @@ export.gt
     # => [is_lhs_greater]
 end
 
+#! Returns true if LHS is greater than or equal to RHS.
+#!
+#! Inputs:  [LHS, RHS]
+#! Outputs: [is_lhs_greater_or_equal]
+#!
+#! Cycles: 118
+export.gte
+    exec.lt
+    not
+end
+
 #! Returns true if LHS is strictly less than RHS, false otherwise.
 #!
 #! The implementation avoids branching for performance reasons.
@@ -170,6 +181,17 @@ export.lt
 
     swap drop
     # => [is_lhs_less]
+end
+
+#! Returns true if LHS is less than or equal to RHS.
+#!
+#! Inputs:  [LHS, RHS]
+#! Outputs: [is_lhs_less_or_equal]
+#!
+#! Cycles: 122
+export.lte
+    exec.gt
+    not
 end
 
 #! Returns true if LHS is exactly equal to RHS, false otherwise.
