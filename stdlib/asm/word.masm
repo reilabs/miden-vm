@@ -2,6 +2,8 @@
 #!
 #! Input: [a, b, c, d, ...]
 #! Output: [d, c, b, a, ...]
+#!
+#! Cycles: 3
 export.reverse
     swap
     movup.2
@@ -31,6 +33,8 @@ end
 #!
 #! Inputs:  [WORD1, WORD2]
 #! Outputs: [word2_3, word1_3, word2_2, word1_2, word2_1, word1_1, word2_0, word1_0]
+#!
+#! Cycles: 8
 proc.arrange_words_adjacent
     # => [1_3, 1_2, 1_1, 1_0, 2_3, 2_2, 2_1, 2_0]
 
@@ -71,6 +75,8 @@ end
 #!
 #! Inputs:  [LHS, RHS]
 #! Outputs: [is_lhs_greater]
+#!
+#! Cycles: 121
 export.gt
     exec.arrange_words_adjacent
     # => [2_3, 1_3, 2_2, 1_2, 2_1, 1_1, 2_0, 1_0]
@@ -122,6 +128,8 @@ end
 #!
 #! Inputs:  [LHS, RHS]
 #! Outputs: [is_lhs_lesser]
+#!
+#! Cycles: 117
 export.lt
     exec.arrange_words_adjacent
     # => [2_3, 1_3, 2_2, 1_2, 2_1, 1_1, 2_0, 1_0]
@@ -169,6 +177,8 @@ end
 #!
 #! Inputs:  [LHS, RHS]
 #! Outputs: [lhs_eq_rhs]
+#!
+#! Cycles: 26
 export.eq
     # => [l3, l2, l1, l0, r3, r2, r1, l0]
     exec.arrange_words_adjacent
