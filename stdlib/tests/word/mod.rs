@@ -1,34 +1,66 @@
-use core::iter;
+use core::cmp::Ordering;
 
-use miden_core::{Felt, Word};
-use miden_utils_testing::{ONE, StackInputs, ZERO, felt_slice_to_ints, rand::seeded_word};
+use miden_core::{Felt, LexicographicWord, Word};
+use miden_utils_testing::rand;
 
-#[test]
-fn test_word_eq() {
-    const SOURCE: &str = "
+/// Note that adding a word to the *beginning* of a Vec adds it to the *bottom* of the stack.
+fn prepend_word(stack: &mut Vec<u64>, word: Word) {
+    // Actual insertion happens when this iterator is dropped.
+    let _iterator = stack.splice(0..0, word.iter().map(Felt::as_int));
+}
+
+fn execute_comparison_test(proc_name: &str, valid_ords: &[Ordering]) {
+    let source = &format!(
+        "
         use.std::word
 
         begin
-            exec.word::eq
+            exec.word::{proc_name}
         end
-    ";
+    "
+    );
 
-    let mut seed = 0xf20;
+    let mut seed = 0xfacade;
 
-    for _ in 0..256 {
-        let lhs: Word = seeded_word(&mut seed);
-        let rhs: Word = seeded_word(&mut seed);
+    for _ in 0..1000 {
+        let lhs = rand::seeded_word(&mut seed);
+        let rhs = rand::seeded_word(&mut seed);
 
-        let operand_stack = iter::empty()
-            .chain(rhs.iter().rev())
-            .chain(lhs.iter().rev())
-            .map(Felt::as_int)
-            .collect::<Vec<_>>();
+        let expected_cmp = LexicographicWord::cmp(&lhs.into(), &rhs.into());
 
-        let result_felt = if lhs == rhs { ONE } else { ZERO };
+        let mut operand_stack: Vec<u64> = Default::default();
+        prepend_word(&mut operand_stack, lhs);
+        prepend_word(&mut operand_stack, rhs);
+        // => [LHS, RHS]
 
-        let result = vec![result_felt.as_int()];
+        let expected = u64::from(valid_ords.contains(&expected_cmp));
 
-        build_debug_test!(SOURCE, &operand_stack).expect_stack(&result);
+        build_test!(source, &operand_stack).expect_stack(&[expected]);
     }
 }
+
+#[test]
+fn test_gt() {
+    execute_comparison_test("gt", &[Ordering::Greater]);
+}
+
+#[test]
+fn test_gte() {
+    execute_comparison_test("gte", &[Ordering::Greater, Ordering::Equal]);
+}
+
+#[test]
+fn test_eq() {
+    execute_comparison_test("eq", &[Ordering::Equal]);
+}
+
+#[test]
+fn test_lt() {
+    execute_comparison_test("lt", &[Ordering::Less]);
+}
+
+#[test]
+fn test_lte() {
+    execute_comparison_test("lte", &[Ordering::Less, Ordering::Equal]);
+}
+
