@@ -6,6 +6,8 @@
 
 - Implement `copy_digest` and `hash_memory_double_words` procedures in the `std::crypto::hashes::rpo` module ([#1971](https://github.com/0xMiden/miden-vm/pull/1971)).
 - Add `extend_` methods on AdviceProvider [#1982](https://github.com/0xMiden/miden-vm/pull/1982).
+- Add new stdlib module `std::word`, containing utilities for manipulating arrays of four fields (words) [#1928](https://github.com/0xMiden/miden-vm/issues/1928).
+- BREAKING: move `std::utils::is_empty_word` to `std::word::is_empty`, as part of the new word module.
 
 #### Changes
 
