@@ -1,10 +1,14 @@
 # Changelog
 
+## 0.16.4 (2025-07-24)
+
+- Made `AdviceInputs` field public.
+
 ## 0.16.3 (2025-07-18)
 
 - Add `new_dummy` method on `ExecutionProof` ([#2007](https://github.com/0xMiden/miden-vm/pull/2007)).
 
-## 0.16.3 (2025-07-11)
+## 0.16.2 (2025-07-11)
 
 - Fix `debug::print_vm_stack` which was returning the advice stack instead of the system stack [(#1984)](https://github.com/0xMiden/miden-vm/issues/1984).
 

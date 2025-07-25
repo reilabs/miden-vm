@@ -21,12 +21,11 @@ use miden_core::{
 /// 2. Key-mapped element lists which can be pushed onto the advice stack.
 /// 3. Merkle store, which is used to provide nondeterministic inputs for instructions that operates
 ///    with Merkle trees.
-#[cfg(not(feature = "testing"))]
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct AdviceInputs {
-    stack: Vec<Felt>,
-    map: AdviceMap,
-    store: MerkleStore,
+    pub stack: Vec<Felt>,
+    pub map: AdviceMap,
+    pub store: MerkleStore,
 }
 
 impl AdviceInputs {
@@ -151,17 +150,6 @@ impl Deserializable for AdviceInputs {
         let store = MerkleStore::read_from(source)?;
         Ok(Self { stack, map, store })
     }
-}
-
-// TESTING
-// ================================================================================================
-
-#[cfg(feature = "testing")]
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct AdviceInputs {
-    pub stack: Vec<Felt>,
-    pub map: AdviceMap,
-    pub store: MerkleStore,
 }
 
 // TESTS
