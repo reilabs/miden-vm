@@ -20,6 +20,10 @@
 - Converted `FastProcessor::execute()` from recursive to iterative execution ([#1989](https://github.com/0xMiden/miden-vm/issues/1989)).
 - [BREAKING] made `AdviceInputs` field public and removed redundant accessors ([#2009](https://github.com/0xMiden/miden-vm/pull/2009)).
 
+## 0.16.4 (2025-07-24)
+
+- Made `AdviceInputs` field public.
+
 ## 0.16.3 (2025-07-18)
 
 - Add `new_dummy` method on `ExecutionProof` ([#2007](https://github.com/0xMiden/miden-vm/pull/2007)).
