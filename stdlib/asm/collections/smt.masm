@@ -1,3 +1,7 @@
+use.std::mem
+use.std::sys
+use.std::word
+
 # Constant value for the depth at which leaves sit
 const.LEAF_DEPTH=64
 
@@ -350,6 +354,111 @@ export.set
     end
 end
 
+# Inputs: [PADDING, ptr]
+# Outputs: [WORD, next_ptr]
+proc.mem_loadw_and_inc
+    dup.4
+    # => [ptr, WORD, ptr]
+    mem_loadw
+    # => [WORD, ptr]
+    movup.4
+    # => [ptr, WORD]
+    add.4
+    # => [ptr_next, WORD]
+    movdn.4
+    # => [WORD, ptr_next]
+end
+
+proc.get_multi.8
+    # => [leaf_size, NV, K, R]
+
+    div.4
+    # => [num_words, NV, K, R]
+
+    dup loc_store.4
+
+    movdn.4
+    # => [NV, num_words, K, R]
+
+    dupw
+    # => [COM, NV, num_words, K, R]
+
+    # FIXME: is there any particular value I should use for the pointer?
+    push.0xA0
+    # => [ptr, COM, NV, num_words, K, R]
+
+    movup.9
+    # => [num_words, ptr, COM, NV, K, R]
+
+    # XXX: replace with a procedure optimized for word-pairs
+    exec.mem::pipe_preimage_to_memory
+    # => [ptr_end, NV, K, R]
+
+    # Memory => [K1, V1, Kn, Vn, ...]
+
+    drop
+    # => [NV, K, R]
+    swapw loc_storew.0 dropw
+    # => [NV, R]
+
+    # => [ptr, NV, R]
+    push.0xA0
+
+    # XXX: replace loop with new VM instruction.
+
+    # Find the one that matches the requested key.
+    loc_load.4 div.2 # => [loop_count, ptr, NV, R]
+    dup loc_store.4
+    gt.0 # => [continue, ptr, NV, R]
+
+    while.true
+        # => [ptr_0, NV, R]
+
+        padw exec.mem_loadw_and_inc
+        # => [K_n, ptr_1, NV, R]
+        padw loc_loadw.0
+        # => [K, K_n, ptr_1, NV, R]
+        eqw
+        # => [K == K_n, K, K_n, ptr_1, NV, R]
+
+        if.true
+            # => [K, K_n, ptr_1, NV, R]
+
+            # Get `V` and end the loop.
+            movup.8
+            # [ptr_1, K, K_n, NV, R]
+            mem_loadw
+            # [V_n, K_n, NV, R]
+
+            swapw dropw
+            # => [V_n, NV, R]
+            swapw dropw
+            # => [V_n, R]
+            push.0
+            # => [continue = 0, V_n, R]
+        else
+            # => [K, K_n, ptr_1, NV, R]
+
+            # Set the next pointer and continue the loop if we should.
+            # We only care about the single local at index `4`, but loadw will
+            # overwrite the stack instead of growing it, and we don't need the
+            # top word.
+            loc_loadw.4
+            # => [x, x, x, loop_count, K_n, ptr_1, NV, R]
+            movup.3 sub.1 movdn.3
+            # => [x, x, x, loop_count', K_n, ptr_1, NV, R]
+            loc_storew.4 drop drop drop
+            # => [loop_count', K_n, ptr_1, NV, R]
+            gt.0
+            # => [continue, K_n, ptr_1, NV, R]
+            movdn.4 dropw
+            swap add.4 swap
+
+            # => [continue, ptr_1, NV, R]
+        end
+    end
+end
+
 # GET
 # =================================================================================================
 
@@ -431,9 +540,8 @@ export.get
             hmerge assert_eqw
             # => [V, R]
         else
-            # Multiple kv-pair case
-            # TODO (fail for now)
-            push.1 assertz
+            # => [leaf_size, NV, K, R]
+            exec.get_multi
         end
     end
 end

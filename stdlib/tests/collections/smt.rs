@@ -1,7 +1,13 @@
+use core::iter;
+
 use super::*;
 
 // TEST DATA
 // ================================================================================================
+
+const fn word(e0: u64, e1: u64, e2: u64, e3: u64) -> Word {
+    Word::new([Felt::new(e0), Felt::new(e1), Felt::new(e2), Felt::new(e3)])
+}
 
 /// Note: We never insert at the same key twice. This is so that the `smt::get` test can loop over
 /// leaves, get the associated value, and compare. We test inserting at the same key twice in tests
@@ -16,6 +22,14 @@ const LEAVES: [(Word, Word); 2] = [
         Word::new([Felt::new(105), Felt::new(106), Felt::new(107), Felt::new(108)]),
         Word::new([Felt::new(5_u64), Felt::new(6_u64), Felt::new(7_u64), Felt::new(8_u64)]),
     ),
+];
+
+/// Unlike the above `LEAVES`, these leaves use the same value for their most-significant felts, to
+/// test leaves with multiple pairs.
+const LEAVES_MULTI: [(Word, Word); 2] = [
+    (word(101, 102, 103, 69420), word(0x1, 0x2, 0x3, 0x4)),
+    // Most significant felt does NOT differ from previous.
+    (word(201, 202, 203, 69420), word(0xb, 0xc, 0xd, 0xe)),
 ];
 
 /// Tests `get` on every key present in the SMT, as well as an empty leaf
@@ -252,6 +266,39 @@ fn test_set_empty_key_in_non_empty_leaf() {
         prepare_insert_or_set(new_key, EMPTY_WORD, &mut smt);
 
     build_test!(source, &init_stack, &[], store, advice_map).expect_stack(&final_stack);
+}
+
+#[test]
+fn test_smt_get_multi() {
+    const SOURCE: &str = "
+        use.std::collections::smt
+
+        begin
+            # => [K, R]
+            exec.smt::get
+            # => [V, R]
+        end
+    ";
+
+    fn expect_value_from_get(key: Word, value: Word, smt: &Smt) {
+        let initial_stack: Vec<u64> = iter::empty()
+            .chain(smt.root().iter())
+            .chain(key.iter())
+            .map(Felt::as_int)
+            .collect();
+        let expected_output = build_expected_stack(value, smt.root());
+
+        let (store, advice_map) = build_advice_inputs(smt);
+        build_debug_test!(SOURCE, &initial_stack, &[], store, advice_map)
+            .expect_stack(&expected_output);
+    }
+
+    let smt = Smt::with_entries(LEAVES_MULTI).unwrap();
+    let (k0, v0) = LEAVES_MULTI[0];
+    let (k1, v1) = LEAVES_MULTI[1];
+
+    expect_value_from_get(k0, v0, &smt);
+    expect_value_from_get(k1, v1, &smt);
 }
 
 // HELPER FUNCTIONS
