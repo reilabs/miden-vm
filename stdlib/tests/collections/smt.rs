@@ -147,8 +147,10 @@ fn test_smt_set_single_to_multi() {
     //    LEAVES_MULTI[1].1,
     //);
 
+    eprintln!("new key compared to old key is {:?}", Ord::cmp(&K1, &K0));
     expect_second_pair(Smt::with_entries([(K0, V0)]).unwrap(), K1, V1);
-    //expect_second_pair(Smt::with_entries([(K1, V1)]).unwrap(), K0, V0);
+    eprintln!("new key compared to old key is {:?}", Ord::cmp(&K0, &K1));
+    expect_second_pair(Smt::with_entries([(K1, V1)]).unwrap(), K0, V0);
 }
 
 //#[test]

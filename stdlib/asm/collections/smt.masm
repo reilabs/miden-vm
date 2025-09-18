@@ -151,68 +151,102 @@ proc.insert_single_leaf.16
         swapw
         # => [V_in_leaf, R_new]
     else
+        nop debug.str="leaf converts to multi"
+
         # => [K_in_leaf, K, V_in_leaf, V, R]
-        loc_storew.4 dropw
-        # => [K, V_in_leaf, V, R]
+        dupw # => [K_in_leaf, K_in_leaf, K, V_in_leaf, V, R]
+        dupw.2 # => [K, K_in_leaf, K_in_leaf, K, V_in_leaf, V, R]
 
-        swapw loc_storew.8 dropw
-        # => [K, V, R]
+        exec.word::lt
+        # => [K_in_leaf < K, K_in_leaf, K, V_in_leaf, V, R]
 
-        dup movdn.12
-        # => [K, V, R, K[3]]
+        if.true
+            # => [K_in_leaf, K, V_in_leaf, V, R]
+            nop debug.str="K_in_leaf < K" nop
 
-        dupw movdnw.3
-        # => [K, V, R, K, K[3]]
+            # Store and drop K_in_leaf.
+            loc_storew.0 dropw
+            # => [K, V_in_leaf, V, R]
 
-        locaddr.4 movdn.4
-        # => [K, start_ptr, V, R, K, K[3]]
-        locaddr.12 movdn.5
+            # Store and drop V_in_leaf
+            swapw loc_storew.4 dropw
+            # => [K, V, R]
 
-        # => [K, start_ptr, end_ptr, V, R, K, K[e]]
-        exec.sorted_array::find_key_value
+            dup # => [K[3], K, V, R]
+            movdn.8 # => [K, V, K[3], R]
 
-        # => [is_key_found, key_ptr, start_ptr, end_ptr, V, R, K, K[3]]
-        assertz.err="unreachable: we already established the key wasn't found"
+            # Store and drop K.
+            loc_storew.8 dropw
+            # => [V, K[3], R]
 
-        # => [key_ptr, start_ptr, end_ptr, V, R, K, K[3]]
-        swap drop swap drop
-        # => [key_ptr, V, R, K, K[3]]
+            # Store and drop V.
+            loc_storew.12 dropw
+            # => [K[3], R]
 
-        movdn.12
-        # => [V, R, K, key_ptr, K[3]]
+            movdn.4
+            # => [R, K[3]]
 
-        movupw.2
-        # => [K, V, R, key_ptr, K[3]]
+        else
+            # => [K_in_leaf, K, V_in_leaf, V, R]
+            nop debug.str="K_in_leaf > K" nop
 
-        dup.12 mem_storew dropw
-        # => [V, R, key_ptr, K[3]]
+            # Store and drop K.
+            swapw loc_storew.0 dropw
+            # => [K_in_leaf, V_in_leaf, V, R]
 
-        dup.8 add.4 mem_storew dropw
-        # => [R, key_ptr, K[3]]
+            # Store and drop V.
+            movupw.2 loc_storew.4 dropw
+            # => [K_in_leaf, V_in_leaf, R]
 
-        # Sort the two pointers.
-        movup.4 # => [key_ptr, R, K[3]]
-        locaddr.4 # => [loc_ptr, key_ptr, R, K[3]]
-        exec.sort2 # => [start_ptr, end_ptr', R, K[3]]
-        swap add.8 swap
+            # Save the index.
+            dup # => [i=K[3], K_in_leaf, V_in_leaf, R]
+            movdn.8
+            # => [K_in_leaf, V_in_leaf, i, R]
+
+            # Store and drop K_in_leaf.
+            loc_storew.8 dropw
+
+            # Store and drop V_in_leaf.
+            loc_storew.12 dropw
+            # => [i, R]
+
+            movdn.4
+            # => [R, i]
+        end
+
+        locaddr.12 add.4
+        # => [end_ptr, R, K[3]]
+
+        locaddr.0
         # => [start_ptr, end_ptr, R, K[3]]
-        dup.1 dup.1
-        # => [start_ptr, end_ptr, start_ptr, end_ptr, R, K[3]]
 
         exec.rpo::hash_memory_words
-        # => [NV, start_ptr, end_ptr, R, K[3]]
+        # => [NV, R, K[3]]
 
         # The node value is the key for the advice map.
+        locaddr.12 add.4 locaddr.0
+        # => [start_ptr, end_ptr, NV, R, K[3]]
+
+        movdn.5
+        # => [end_ptr, NV, start_ptr, R, K[3]]
+        movdn.5
+        # => [NV, start_ptr, end_ptr, R, K[3]]
+
         adv.insert_mem
         # => [NV, start_ptr, end_ptr, R, K[3]]
 
+        # Drop both pointers.
         movup.4 drop movup.4 drop
         # => [NV, R, K[3]]
-        swapw # => [R, NV, K[3]]
+
+        swapw
+        # => [R, NV, K[3]]
+
         movup.8 # K[3] is the index.
-        # => [i, R, NV]
+
         push.LEAF_DEPTH
         # => [d, i, R, NV]
+
         mtree_set
         # => [NV_old, R_new]
 
