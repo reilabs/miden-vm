@@ -191,6 +191,7 @@ fn main() -> io::Result<()> {
     let namespace = "std".parse::<LibraryNamespace>().expect("invalid base namespace");
     let stdlib = assembler
         .assemble_library_from_dir(&asm_dir, namespace)
+        .inspect_err(|e| eprintln!("error assembling: {e:?}"))
         .map_err(|e| io::Error::other(e.to_string()))?;
 
     // write the masl output

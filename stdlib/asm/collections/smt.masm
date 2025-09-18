@@ -1,3 +1,9 @@
+use.std::mem
+use.std::word
+use.std::sys
+use.std::collections::sorted_array
+use.std::crypto::hashes::rpo
+
 # Constant value for the depth at which leaves sit
 const.LEAF_DEPTH=64
 
@@ -70,6 +76,21 @@ proc.set_empty_leaf
     end
 end
 
+#! Sorts two elements.
+#!
+#! => Inputs: [b, a, ...]
+#! => Outputs: [min(b, a), max(b, a), ...]
+proc.sort2
+    dup.1 dup.1
+    # => [b, a, b, a]
+
+    lt
+    # => [b > a, b, a]
+
+    cswap
+    # => [min(b, a), max(b, a)]
+end
+
 #! Inserts a value at the given key. The leaf to which we're inserting is
 #! guaranteed to hold a single key-value pair (provided on the advice stack).
 #!
@@ -83,7 +104,7 @@ end
 #! Cycles:
 #!   Leaf single after insertion: X cycles
 #!   Leaf multiple after insertion: unimplemented
-proc.insert_single_leaf
+proc.insert_single_leaf.16
     # Push the leaf pre-image on stack
     # (X cycles)
     adv_push.8
@@ -130,9 +151,77 @@ proc.insert_single_leaf
         swapw
         # => [V_in_leaf, R_new]
     else
-        # Leaf becomes a Multiple kv-pair case
-        # TODO (fail for now)
-        push.1 assertz
+        # => [K_in_leaf, K, V_in_leaf, V, R]
+        loc_storew.4 dropw
+        # => [K, V_in_leaf, V, R]
+
+        swapw loc_storew.8 dropw
+        # => [K, V, R]
+
+        dup movdn.12
+        # => [K, V, R, K[3]]
+
+        dupw movdnw.3
+        # => [K, V, R, K, K[3]]
+
+        locaddr.4 movdn.4
+        # => [K, start_ptr, V, R, K, K[3]]
+        locaddr.12 movdn.5
+
+        # => [K, start_ptr, end_ptr, V, R, K, K[e]]
+        exec.sorted_array::find_key_value
+
+        # => [is_key_found, key_ptr, start_ptr, end_ptr, V, R, K, K[3]]
+        assertz.err="unreachable: we already established the key wasn't found"
+
+        # => [key_ptr, start_ptr, end_ptr, V, R, K, K[3]]
+        swap drop swap drop
+        # => [key_ptr, V, R, K, K[3]]
+
+        movdn.12
+        # => [V, R, K, key_ptr, K[3]]
+
+        movupw.2
+        # => [K, V, R, key_ptr, K[3]]
+
+        dup.12 mem_storew dropw
+        # => [V, R, key_ptr, K[3]]
+
+        dup.8 add.4 mem_storew dropw
+        # => [R, key_ptr, K[3]]
+
+        # Sort the two pointers.
+        movup.4 # => [key_ptr, R, K[3]]
+        locaddr.4 # => [loc_ptr, key_ptr, R, K[3]]
+        exec.sort2 # => [start_ptr, end_ptr', R, K[3]]
+        swap add.8 swap
+        # => [start_ptr, end_ptr, R, K[3]]
+        dup.1 dup.1
+        # => [start_ptr, end_ptr, start_ptr, end_ptr, R, K[3]]
+
+        exec.rpo::hash_memory_words
+        # => [NV, start_ptr, end_ptr, R, K[3]]
+
+        # The node value is the key for the advice map.
+        adv.insert_mem
+        # => [NV, start_ptr, end_ptr, R, K[3]]
+
+        movup.4 drop movup.4 drop
+        # => [NV, R, K[3]]
+        swapw # => [R, NV, K[3]]
+        movup.8 # K[3] is the index.
+        # => [i, R, NV]
+        push.LEAF_DEPTH
+        # => [d, i, R, NV]
+        mtree_set
+        # => [NV_old, R_new]
+
+        # By nature, if an insertion transforms a single-leaf to a multi-leaf, then the old value at
+        # this key is an empty word.
+        padw swapw dropw
+        # => [Z, R_new]
+
+        exec.sys::truncate_stack
     end
 end
 
@@ -433,7 +522,7 @@ export.get
         else
             # Multiple kv-pair case
             # TODO (fail for now)
-            push.1 assertz
+            push.1 assertz.err="multipair get unimplemented"
         end
     end
 end

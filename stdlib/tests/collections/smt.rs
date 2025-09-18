@@ -1,23 +1,40 @@
+use std::iter;
+
 use miden_stdlib::handlers::smt_peek::SMT_PEEK_EVENT_NAME;
 
 use super::*;
 
+/// Note that adding a word to the *beginning* of a Vec adds it to the *bottom* of the stack.
+pub fn prepend_word(target: &mut Vec<u64>, word: Word) {
+    // Actual insertion happens when this iterator is dropped.
+    let _iterator = target.splice(0..0, word.iter().map(Felt::as_int));
+}
+
 // TEST DATA
 // ================================================================================================
+
+const fn word(e0: u64, e1: u64, e2: u64, e3: u64) -> Word {
+    Word::new([Felt::new(e0), Felt::new(e1), Felt::new(e2), Felt::new(e3)])
+}
 
 /// Note: We never insert at the same key twice. This is so that the `smt::get` test can loop over
 /// leaves, get the associated value, and compare. We test inserting at the same key twice in tests
 /// that use different data.
 const LEAVES: [(Word, Word); 2] = [
     (
-        Word::new([Felt::new(101), Felt::new(102), Felt::new(103), Felt::new(104)]),
-        Word::new([Felt::new(1_u64), Felt::new(2_u64), Felt::new(3_u64), Felt::new(4_u64)]),
+        word(101, 102, 103, 104),
+        // Most significant Felt differs from previous
+        word(1_u64, 2_u64, 3_u64, 4_u64),
     ),
-    // Most significant Felt differs from previous
-    (
-        Word::new([Felt::new(105), Felt::new(106), Felt::new(107), Felt::new(108)]),
-        Word::new([Felt::new(5_u64), Felt::new(6_u64), Felt::new(7_u64), Felt::new(8_u64)]),
-    ),
+    (word(105, 106, 107, 108), word(5_u64, 6_u64, 7_u64, 8_u64)),
+];
+
+/// Unlike the above `LEAVES`, these leaves use the same value for their most-significant felts, to
+/// test leaves with multiple pairs.
+const LEAVES_MULTI: [(Word, Word); 2] = [
+    (word(101, 102, 103, 69420), word(0x1, 0x2, 0x3, 0x4)),
+    // Most significant felt does NOT differ from previous.
+    (word(201, 202, 203, 69420), word(0xb, 0xc, 0xd, 0xe)),
 ];
 
 /// Tests `get` on every key present in the SMT, as well as an empty leaf
@@ -37,7 +54,8 @@ fn test_smt_get() {
         let expected_output = build_expected_stack(value, smt.root());
 
         let (store, advice_map) = build_advice_inputs(smt);
-        build_test!(source, &initial_stack, &[], store, advice_map).expect_stack(&expected_output);
+        build_debug_test!(source, &initial_stack, &[], store, advice_map)
+            .expect_stack(&expected_output);
     }
 
     let smt = Smt::with_entries(LEAVES).unwrap();
@@ -55,10 +73,112 @@ fn test_smt_get() {
     );
 }
 
+#[test]
+fn test_smt_get_multi() {
+    const SOURCE: &str = "
+        use.std::collections::smt
+
+        begin
+            # => [K, R]
+            exec.smt::get
+            # => [V, R]
+        end
+    ";
+
+    fn expect_value_from_get(key: Word, value: Word, smt: &Smt) {
+        let mut initial_stack: Vec<u64> = Default::default();
+        prepend_word(&mut initial_stack, key);
+        prepend_word(&mut initial_stack, smt.root());
+        let expected_output = build_expected_stack(value, smt.root());
+
+        let (store, advice_map) = build_advice_inputs(smt);
+        build_debug_test!(SOURCE, &initial_stack, &[], store, advice_map)
+            .expect_stack(&expected_output);
+    }
+
+    let smt = Smt::with_entries(LEAVES_MULTI).unwrap();
+    let (k0, v0) = LEAVES_MULTI[0];
+    let (k1, v1) = LEAVES_MULTI[1];
+
+    expect_value_from_get(k0, v0, &smt);
+    expect_value_from_get(k1, v1, &smt);
+}
+
+#[test]
+fn test_smt_set_single_to_multi() {
+    const SOURCE: &str = "
+        use.std::collections::smt
+
+        begin
+            # => [V, K, R]
+            exec.smt::set
+            # => [V_old, R_new]
+        end
+    ";
+
+    fn expect_second_pair(smt: Smt, key: Word, value: Word) {
+        let initial_stack: Vec<u64> = iter::empty()
+            .chain(smt.root().iter())
+            .chain(key.iter())
+            .chain(value.iter())
+            .map(Felt::as_int)
+            .collect();
+
+        let mut expected_smt = smt.clone();
+        expected_smt.insert(key, value).unwrap();
+
+        let expected_output = build_expected_stack(EMPTY_WORD, expected_smt.root());
+
+        let (store, advice_map) = build_advice_inputs(&smt);
+        build_debug_test!(SOURCE, &initial_stack, &[], store, advice_map)
+            .expect_stack(&expected_output);
+    }
+
+    const K0: Word = word(101, 102, 103, 420);
+    const V0: Word = word(555, 666, 777, 888);
+
+    const K1: Word = word(201, 202, 203, 420);
+    const V1: Word = word(555, 666, 777, 888);
+    //const V1: Word = word(232, 332, 432, 532);
+
+    //expect_second_pair(
+    //    Smt::with_entries([LEAVES_MULTI[0]]).unwrap(),
+    //    LEAVES_MULTI[1].0,
+    //    LEAVES_MULTI[1].1,
+    //);
+
+    expect_second_pair(Smt::with_entries([(K0, V0)]).unwrap(), K1, V1);
+    //expect_second_pair(Smt::with_entries([(K1, V1)]).unwrap(), K0, V0);
+}
+
+//#[test]
+//fn test_smt_set_multi_to_multi() {
+//    const SOURCE: &str = "
+//        use.std::collections::smt
+//        begin
+//            # => [V, K, R]
+//            exec.smt::set
+//            # => [V_old, R_new]
+//        end
+//    ";
+//
+//    fn expect_second_pair(smt: Smt, key: Word, value: Word) {
+//        let initial_stack: Vec<u64> = iter::empty()
+//            .chain(smt.root().iter())
+//            .chain(key.iter())
+//            .chain(value.iter())
+//            .map(Felt::as_int)
+//            .collect();
+//
+//        let mut expected_smt = smt.clone();
+//        expected_smt
+//    }
+//}
+
 /// Tests inserting and removing key-value pairs to an SMT. We do the insert/removal twice to ensure
 /// that the removal properly updates the advice map/stack.
 #[test]
-fn test_smt_set() {
+fn test_smt_set_simple() {
     fn assert_insert_and_remove(smt: &mut Smt) {
         let empty_tree_root = smt.root();
 
@@ -77,18 +197,27 @@ fn test_smt_set() {
             old_roots.push(smt.root());
             let (init_stack, final_stack, store, advice_map) =
                 prepare_insert_or_set(key, value, smt);
-            build_test!(source, &init_stack, &[], store, advice_map).expect_stack(&final_stack);
+            if value == miden_core::EMPTY_WORD {
+                std::eprintln!("TESTING REMOVAL for key {key:?}\n");
+            } else {
+                std::eprintln!("TESTING INSERT for key {key:?}");
+                std::eprintln!("  value: {value:?}\n");
+            }
+            build_debug_test!(source, &init_stack, &[], store, advice_map)
+                .expect_stack(&final_stack);
         }
 
         // setting to [ZERO; 4] should return the tree to the prior state
         for (key, old_value) in LEAVES.iter().rev() {
             let value = EMPTY_WORD;
+            std::eprintln!("TESTING REMOVAL for key {key:?}\n");
             let (init_stack, final_stack, store, advice_map) =
                 prepare_insert_or_set(*key, value, smt);
 
             let expected_final_stack = build_expected_stack(*old_value, old_roots.pop().unwrap());
             assert_eq!(expected_final_stack, final_stack);
-            build_test!(source, &init_stack, &[], store, advice_map).expect_stack(&final_stack);
+            build_debug_test!(source, &init_stack, &[], store, advice_map)
+                .expect_stack(&final_stack);
         }
 
         assert_eq!(smt.root(), empty_tree_root);
@@ -115,7 +244,7 @@ fn test_smt_set_same_key() {
     let key = LEAVES[0].0;
     let value = [Felt::from(42323_u32); 4].into();
     let (init_stack, final_stack, store, advice_map) = prepare_insert_or_set(key, value, &mut smt);
-    build_test!(source, &init_stack, &[], store, advice_map).expect_stack(&final_stack);
+    build_debug_test!(source, &init_stack, &[], store, advice_map).expect_stack(&final_stack);
 }
 
 /// Tests inserting an empty value to an empty tree
@@ -134,7 +263,7 @@ fn test_smt_set_empty_value_to_empty_leaf() {
     let key = Word::new([41_u32.into(), 42_u32.into(), 43_u32.into(), 44_u32.into()]);
     let value = EMPTY_WORD;
     let (init_stack, final_stack, store, advice_map) = prepare_insert_or_set(key, value, &mut smt);
-    build_test!(source, &init_stack, &[], store, advice_map).expect_stack(&final_stack);
+    build_debug_test!(source, &init_stack, &[], store, advice_map).expect_stack(&final_stack);
 
     assert_eq!(smt.root(), empty_tree_root);
 }
@@ -181,7 +310,9 @@ fn test_set_advice_map_empty_key() {
     let (init_stack, _, store, advice_map) = prepare_insert_or_set(key, value.into(), &mut smt);
 
     // assert is checked in MASM
-    build_test!(source, &init_stack, &[], store, advice_map).execute().unwrap();
+    build_debug_test!(source, &init_stack, &[], store, advice_map)
+        .execute()
+        .unwrap();
 }
 
 /// Tests that the advice map is properly updated after a `set` on a key that has existing value
@@ -225,7 +356,9 @@ fn test_set_advice_map_single_key() {
     let (init_stack, _, store, advice_map) = prepare_insert_or_set(key, value.into(), &mut smt);
 
     // assert is checked in MASM
-    build_test!(source, &init_stack, &[], store, advice_map).execute().unwrap();
+    build_debug_test!(source, &init_stack, &[], store, advice_map)
+        .execute()
+        .unwrap();
 }
 
 /// Tests setting an empty value to an empty key, but that maps to a leaf with another key
@@ -256,7 +389,7 @@ fn test_set_empty_key_in_non_empty_leaf() {
     let (init_stack, final_stack, store, advice_map) =
         prepare_insert_or_set(new_key, EMPTY_WORD, &mut smt);
 
-    build_test!(source, &init_stack, &[], store, advice_map).expect_stack(&final_stack);
+    build_debug_test!(source, &init_stack, &[], store, advice_map).expect_stack(&final_stack);
 }
 
 // HELPER FUNCTIONS
