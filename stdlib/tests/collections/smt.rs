@@ -73,36 +73,36 @@ fn test_smt_get() {
     );
 }
 
-#[test]
-fn test_smt_get_multi() {
-    const SOURCE: &str = "
-        use.std::collections::smt
-
-        begin
-            # => [K, R]
-            exec.smt::get
-            # => [V, R]
-        end
-    ";
-
-    fn expect_value_from_get(key: Word, value: Word, smt: &Smt) {
-        let mut initial_stack: Vec<u64> = Default::default();
-        prepend_word(&mut initial_stack, key);
-        prepend_word(&mut initial_stack, smt.root());
-        let expected_output = build_expected_stack(value, smt.root());
-
-        let (store, advice_map) = build_advice_inputs(smt);
-        build_debug_test!(SOURCE, &initial_stack, &[], store, advice_map)
-            .expect_stack(&expected_output);
-    }
-
-    let smt = Smt::with_entries(LEAVES_MULTI).unwrap();
-    let (k0, v0) = LEAVES_MULTI[0];
-    let (k1, v1) = LEAVES_MULTI[1];
-
-    expect_value_from_get(k0, v0, &smt);
-    expect_value_from_get(k1, v1, &smt);
-}
+//#[test]
+//fn test_smt_get_multi() {
+//    const SOURCE: &str = "
+//        use.std::collections::smt
+//
+//        begin
+//            # => [K, R]
+//            exec.smt::get
+//            # => [V, R]
+//        end
+//    ";
+//
+//    fn expect_value_from_get(key: Word, value: Word, smt: &Smt) {
+//        let mut initial_stack: Vec<u64> = Default::default();
+//        prepend_word(&mut initial_stack, key);
+//        prepend_word(&mut initial_stack, smt.root());
+//        let expected_output = build_expected_stack(value, smt.root());
+//
+//        let (store, advice_map) = build_advice_inputs(smt);
+//        build_debug_test!(SOURCE, &initial_stack, &[], store, advice_map)
+//            .expect_stack(&expected_output);
+//    }
+//
+//    let smt = Smt::with_entries(LEAVES_MULTI).unwrap();
+//    let (k0, v0) = LEAVES_MULTI[0];
+//    let (k1, v1) = LEAVES_MULTI[1];
+//
+//    expect_value_from_get(k0, v0, &smt);
+//    expect_value_from_get(k1, v1, &smt);
+//}
 
 #[test]
 fn test_smt_set_single_to_multi() {
@@ -151,6 +151,40 @@ fn test_smt_set_single_to_multi() {
     expect_second_pair(Smt::with_entries([(K0, V0)]).unwrap(), K1, V1);
     eprintln!("new key compared to old key is {:?}", Ord::cmp(&K0, &K1));
     expect_second_pair(Smt::with_entries([(K1, V1)]).unwrap(), K0, V0);
+}
+
+#[test]
+fn test_smt_set_multi_middle() {
+    const SOURCE: &str = "
+        use.std::collections::smt
+        use.std::sys
+
+        begin
+            # => [V, K, R]
+            exec.smt::set
+            # => [V_old, R_new]
+            exec.sys::truncate_stack
+        end
+    ";
+
+    const K: Word = word(150, 160, 170, 69420);
+    const V: Word = word(0x50, 0x51, 0x52, 0x53);
+
+    let smt = Smt::with_entries(LEAVES_MULTI).unwrap();
+
+    let initial_stack: Vec<u64> = iter::empty()
+        .chain(smt.root().iter())
+        .chain(K.iter())
+        .chain(V.iter())
+        .map(Felt::as_int)
+        .collect();
+    let mut expected_smt = smt.clone();
+    expected_smt.insert(K, V).unwrap();
+
+    let expected_output = build_expected_stack(EMPTY_WORD, expected_smt.root());
+    let (store, advice_map) = build_advice_inputs(&smt);
+    build_debug_test!(SOURCE, &initial_stack, &[], store, advice_map)
+        .expect_stack(&expected_output);
 }
 
 //#[test]

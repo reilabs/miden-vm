@@ -447,30 +447,184 @@ export.set
         # Retrieve leaf pre-image on advice stack, and push leaf size on stack
         # Note: the rest of the leaf pre-image will be pulled out later
         # (4 cycles)
-        adv.push_mapvaln dropw adv_push.1
-        # => [leaf_size, V, K, R]
+        adv.push_mapvaln adv_push.1
+        # => [leaf_size, NV, V, K, R]
 
         # Leaf size will be a multiple of 8 (each kv-pair in a leaf is 8 elements)
         # (3 cycles)
         dup eq.8
-        # => [is_single_kv_pair, leaf_size, V, K, R]
+        # => [is_single_kv_pair, leaf_size, NV, V, K, R]
 
         if.true
             #  Single kv-pair case
 
             # (1 cycle)
-            drop
+            drop dropw
             # => [V, K, R]
 
             # (remove key/value: X cycles)
             # (insert; leaf single after insertion: X cycles)
             exec.set_single_leaf
         else
+            # => [leaf_size, NV, V, K, R]
+            nop debug.str="leaf_size, NV, V, K, R:" debug.stack
+            exec.set_multi_leaf
             # Multiple kv-pair case
             # TODO (fail for now)
-            push.1 assertz
+            #push.1 assertz.err="multi kv unimpl"
         end
     end
+end
+
+proc.set_multi_leaf.16
+    debug.str="set_multi_leaf"
+    nop
+
+    # => [leaf_size, NV, V, K, R]
+    div.4
+    # => [num_words, NV, V, K, R]
+
+    # Keep track of num_words.
+    loc_store.0
+    # => [NV, V, K, R]
+
+    # While we have K word-aligned on the stack, dup it to a more convenient place, then restore
+    # num_words.
+    dupw.2 swapw loc_load.0
+    # => [num_words, NV, K, V, K, R]
+
+    # Grab the leaf preimage from the advice stack, using the node value as our commitment.
+    push.0xA0 swap
+    # => [num_words, write_ptr, COM, K, V, K, R]
+
+    exec.mem::pipe_double_words_preimage_to_memory
+    # => [end_ptr, K, V, K, R]
+
+    push.0xA0
+    # => [start_ptr, end_ptr, K, V, K, R]
+
+    movdn.5 movdn.5
+    # => [K, start_ptr, end_ptr, V, K, R]
+
+    exec.sorted_array::find_key_value
+    # => [is_key_found, key_ptr, start_ptr, end_ptr, V, K, R]
+
+    # If the key wasn't found, then we need to insert-and-move the new pair.
+    if.false
+        # => [key_ptr, start_ptr, end_ptr, V, K, R]
+        # Copy everything from start_ptr to key_ptr to a new location.
+        exec.insert_into_sorted
+    else
+        nop
+        push.0 assert.err="TODO override key"
+    end
+end
+
+proc.insert_into_sorted.16
+
+    # LOCALS:
+    # 0: key_ptr
+    # 1: start_ptr
+    # 2: end_ptr
+    # 3: new_leaf_size
+    # 4: index
+
+    nop debug.str="key_ptr, start_ptr, end_ptr, V, K, R" debug.stack
+
+    # => [key_ptr, start_ptr, end_ptr, V, K, R]
+    loc_store.0 loc_store.1 loc_store.2
+    # => [V, K, R]
+
+    loc_load.2 loc_load.1 sub
+    # => [end_ptr - start_ptr, V, K, R]
+
+    # We're adding a single KV pair, which is always 8 elements.
+    add.8 loc_store.3 # new_leaf_size
+    # => [V, K, R]
+
+    dup.4 # K[3] = index
+    loc_store.4
+    # => [V, K, R]
+
+    # We have three cases:
+    # 1. The new pair goes before start_ptr.
+    # 2. The new pair goes after end_ptr.
+    # 3. The new pair goes between them.
+
+    loc_load.1 # start_ptr
+    loc_load.0 # key_ptr
+    lt # key_ptr < start_ptr
+
+    if.true
+        debug.str="key_ptr < start_ptr"
+        # => [V, K, R]
+        # Copy the new KV-pair
+        swapw
+        mem_storew.0xF0 dropw
+        mem_storew.0xF4 dropw
+        debug.mem.0xF0.0xF4
+        # => [R]
+
+        # Copy from start_ptr to end_ptr.
+        push.0xF8 # => [dest_ptr, R]
+        loc_load.2 # => [end_ptr, dest_ptr, R]
+        loc_load.1 # => [start_ptr, end_ptr, dest_ptr, R]
+        # => [start_ptr, end_ptr, dest_ptr, R]
+        sub div.4
+        # [num_words, dest_ptr, R]
+
+        loc_load.1
+        # => [start_ptr, num_words, dest_ptr, R]
+
+        swap
+        # => [num_words, start_ptr, dest_ptr, R]
+
+        exec.mem::memcopy_words
+        # => [R]
+
+        # While the stack is word-aligned, push V_old to it.
+        # V_old must be an empty word, since the key wasn't found.
+        padw swapw
+        # => [R, V_old]
+
+        # Prepare for hash_memory_words.
+
+        push.0xF8 loc_load.3 add
+        # => [end_ptr, R, V_old]
+        push.0xF0
+        # => [start_ptr, end_ptr, R, V_old]
+    else
+        push.0 assert.err="key_ptr > start_ptr todo"
+    end
+
+    # => [start_ptr, end_ptr, R, V_old]
+    dup.1 dup.1
+    # => [start_ptr, end_ptr, start_ptr, end_ptr, R, V_old]
+
+    exec.rpo::hash_memory_words
+    # => [NV, start_ptr, end_ptr, R, V_old]
+    exec.sys::truncate_stack
+    debug.str="NV, start_ptr, end_ptr, R" debug.stack nop
+
+    adv.insert_mem
+    # => [NV, start_ptr, end_ptr, R, V_old]
+
+    # Now prepare for mtree_set
+
+    # Drop both pointers.
+    movup.4 drop movup.4 drop
+    # => [NV, R, V_old]
+
+    swapw
+    # => [R, NV, V_old]
+    loc_load.4 push.LEAF_DEPTH
+    # => [d, i, R, NV, V_old]
+
+    mtree_set
+    # => [NV_old, R_new, V_old]
+
+    dropw swapw
+    # => [V_old, R_new]
 end
 
 # GET
