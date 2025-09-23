@@ -318,7 +318,8 @@ where
         | U32AssertWithError(code)
         | U32Assert2WithError(code)
         | U32AssertWWithError(code)
-        | MTreeVerifyWithError(code) => visitor.visit_immediate_error_message(code),
+        | MTreeVerifyWithError(code)
+        | DebugStr(code) => visitor.visit_immediate_error_message(code),
         AddImm(imm) | SubImm(imm) | MulImm(imm) | DivImm(imm) | ExpImm(imm) | EqImm(imm)
         | NeqImm(imm) => visitor.visit_immediate_felt(imm),
         Push(imm) => visitor.visit_immediate_push_value(imm),
@@ -776,7 +777,8 @@ where
         | U32AssertWithError(code)
         | U32Assert2WithError(code)
         | U32AssertWWithError(code)
-        | MTreeVerifyWithError(code) => visitor.visit_mut_immediate_error_message(code),
+        | MTreeVerifyWithError(code)
+        | DebugStr(code) => visitor.visit_mut_immediate_error_message(code),
         AddImm(imm) | SubImm(imm) | MulImm(imm) | DivImm(imm) | ExpImm(imm) | EqImm(imm)
         | NeqImm(imm) => visitor.visit_mut_immediate_felt(imm),
         Push(imm) => visitor.visit_mut_immediate_push_value(imm),

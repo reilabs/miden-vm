@@ -108,6 +108,7 @@ extern {
         "ext2neg" => Token::Ext2Neg,
         "ext2sub" => Token::Ext2Sub,
         "err" => Token::Err,
+        "str" => Token::Str,
         "exec" => Token::Exec,
         "event" => Token::Event,
         "exp" => Token::Exp,
@@ -1133,6 +1134,7 @@ Debug: Instruction = {
             Instruction::Debug(DebugOptions::AdvStackTop(0.into())),
         }
     },
+    "debug" "." "str" "=" <value:ImmError> => Instruction::DebugStr(value),
     "emit" => Instruction::Emit,
     // emit.EVENT_CONST  where EVENT_CONST is defined via const.EVENT_CONST=event("...")
     "emit" "." <name:ConstantName> => Instruction::EmitImm(Immediate::Constant(name)),

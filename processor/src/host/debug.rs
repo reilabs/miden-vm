@@ -32,6 +32,13 @@ pub fn print_debug_info(process: &ProcessState, options: &DebugOptions) {
     }
 }
 
+pub fn print_debug_str(process: &ProcessState, msg: alloc::sync::Arc<str>) {
+    println!(
+        "\n\x1b[2mDebug message before step\x1b[0m \x1b[1m{}\x1b[0m: \x1b[36m{msg}\x1b[0m\n",
+        process.clk(),
+    );
+}
+
 // HELPER FUNCTIONS
 // ================================================================================================
 
@@ -79,6 +86,8 @@ fn print_vm_adv_stack(process: &ProcessState, n: u16) {
     };
 
     let stack = &stack[..num_items];
+    let mut stack = Vec::from(stack);
+    stack.reverse();
 
     if let Some((last, front)) = stack.split_last() {
         // print all items except for the last one
@@ -171,6 +180,7 @@ fn print_local_interval(process: &ProcessState, start: u16, end: u16, num_locals
         println!("State of procedure local {start} before step {}:", process.clk());
     }
     print_interval(locals, true);
+    println!();
 }
 
 // HELPER FUNCTIONS
@@ -216,7 +226,7 @@ fn print_mem_address(
     };
 
     let addr_string = if is_local {
-        format!("{addr:>5}")
+        format!("{addr:>2}")
     } else {
         format!("{addr:#010x}")
     };

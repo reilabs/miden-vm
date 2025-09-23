@@ -584,6 +584,12 @@ impl Assembler {
                     )?))?;
                 }
             },
+            Instruction::DebugStr(err_msg) => {
+                if self.in_debug_mode() {
+                    let decorator = Decorator::DebugStr(err_msg.expect_string());
+                    block_builder.push_decorator(decorator)?;
+                }
+            },
 
             // ----- emit instruction -------------------------------------------------------------
             // emit: reads event ID from top of stack and execute the corresponding handler.

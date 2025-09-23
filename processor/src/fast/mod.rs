@@ -538,6 +538,12 @@ impl FastProcessor {
                     host.on_debug(process, options)?;
                 }
             },
+            Decorator::DebugStr(msg) => {
+                if self.in_debug_mode {
+                    let process = &mut self.state();
+                    host.on_debug_str(process, Arc::clone(msg))?;
+                }
+            },
             Decorator::AsmOp(_assembly_op) => {
                 // do nothing
             },

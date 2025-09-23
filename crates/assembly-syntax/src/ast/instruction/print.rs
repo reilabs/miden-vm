@@ -32,6 +32,9 @@ impl PrettyPrint for Instruction {
             Self::SubImm(value) => inst_with_felt_imm("sub", value),
             Self::Mul => const_text("mul"),
             Self::MulImm(value) => inst_with_felt_imm("mul", value),
+            Self::DebugStr(msg) => {
+                flatten(const_text("debug.str") + const_text("=") + text(format!("\"{msg}\"")))
+            },
             Self::Div => const_text("div"),
             Self::DivImm(value) => inst_with_felt_imm("div", value),
             Self::Neg => const_text("neg"),

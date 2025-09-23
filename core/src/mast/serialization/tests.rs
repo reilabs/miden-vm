@@ -121,6 +121,7 @@ fn confirm_operation_and_decorator_structure() {
             DebugOptions::LocalInterval(..) => (),
             DebugOptions::AdvStackTop(_) => (),
         },
+        Decorator::DebugStr(_) => (),
         Decorator::Trace(_) => (),
     };
 }

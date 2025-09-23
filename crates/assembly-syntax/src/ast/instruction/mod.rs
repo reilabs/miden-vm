@@ -273,6 +273,7 @@ pub enum Instruction {
     // ----- debug decorators --------------------------------------------------------------------
     Breakpoint,
     Debug(DebugOptions),
+    DebugStr(ErrorMsg),
 
     // ----- event decorators --------------------------------------------------------------------
     Emit,
