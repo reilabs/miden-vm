@@ -174,6 +174,18 @@ pub trait DebugHandler: Sync {
         Ok(())
     }
 
+    /// This function is invoked when the `DebugStr` decorator is executed.
+    fn on_debug_str(
+        &mut self,
+        process: &ProcessState,
+        msg: Arc<str>,
+    ) -> Result<(), ExecutionError> {
+        let _ = (&process, &msg);
+        #[cfg(feature = "std")]
+        crate::host::debug::print_debug_str(process, msg);
+        Ok(())
+    }
+
     /// This function is invoked when the `Trace` decorator is executed.
     fn on_trace(&mut self, process: &ProcessState, trace_id: u32) -> Result<(), ExecutionError> {
         let _ = (&process, trace_id);

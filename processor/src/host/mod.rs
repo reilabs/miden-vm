@@ -75,6 +75,15 @@ pub trait BaseHost {
         DefaultDebugHandler.on_debug(process, options)
     }
 
+    /// Handles the DebugStr request from the VM.
+    fn on_debug_str(
+        &mut self,
+        process: &mut ProcessState,
+        msg: Arc<str>,
+    ) -> Result<(), ExecutionError> {
+        DefaultDebugHandler.on_debug_str(process, msg)
+    }
+
     /// Handles the trace emitted from the VM.
     fn on_trace(
         &mut self,

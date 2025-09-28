@@ -2,7 +2,7 @@ pub mod advice;
 pub mod debug;
 mod print;
 
-use alloc::vec::Vec;
+use alloc::{sync::Arc, vec::Vec};
 use core::ops::Range;
 
 pub use self::{advice::SystemEventNode, debug::DebugOptions};
@@ -273,6 +273,7 @@ pub enum Instruction {
     // ----- debug decorators --------------------------------------------------------------------
     Breakpoint,
     Debug(DebugOptions),
+    DebugStr(Immediate<Arc<str>>),
 
     // ----- event decorators --------------------------------------------------------------------
     Emit,

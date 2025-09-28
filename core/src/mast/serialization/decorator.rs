@@ -116,6 +116,11 @@ impl DecoratorInfo {
                 let value = data_reader.read_u16()?;
                 Ok(Decorator::Debug(DebugOptions::AdvStackTop(value)))
             },
+            EncodedDecoratorVariant::DebugStr => {
+                let len = data_reader.read_u64()?;
+                let value = data_reader.read_string(len as usize)?;
+                Ok(Decorator::DebugStr(alloc::sync::Arc::from(value)))
+            },
         }
     }
 }
@@ -155,6 +160,7 @@ pub enum EncodedDecoratorVariant {
     DebugOptionsMemInterval,
     DebugOptionsLocalInterval,
     DebugOptionsAdvStackTop,
+    DebugStr,
     Trace,
 }
 
@@ -185,6 +191,7 @@ impl From<&Decorator> for EncodedDecoratorVariant {
                 DebugOptions::LocalInterval(..) => Self::DebugOptionsLocalInterval,
                 DebugOptions::AdvStackTop(_) => Self::DebugOptionsAdvStackTop,
             },
+            Decorator::DebugStr(_) => Self::DebugStr,
             Decorator::Trace(_) => Self::Trace,
         }
     }
@@ -292,6 +299,11 @@ impl DecoratorDataBuilder {
                     Some(data_offset)
                 },
                 DebugOptions::StackAll | DebugOptions::MemAll => None,
+            },
+            Decorator::DebugStr(msg) => {
+                self.decorator_data.extend((msg.len() as u64).to_le_bytes());
+                self.decorator_data.extend(msg.as_bytes());
+                Some(data_offset)
             },
             Decorator::Trace(value) => {
                 self.decorator_data.extend(value.to_le_bytes());

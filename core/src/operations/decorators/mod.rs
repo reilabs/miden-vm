@@ -1,4 +1,4 @@
-use alloc::{string::ToString, vec::Vec};
+use alloc::{string::ToString, sync::Arc, vec::Vec};
 use core::fmt;
 
 use miden_crypto::hash::blake::Blake3_256;
@@ -33,6 +33,8 @@ pub enum Decorator {
     /// Prints out information about the state of the VM based on the specified options. This
     /// decorator is executed only in debug mode.
     Debug(DebugOptions),
+    /// Prints a literal string. This decorator is executed only in debug mode.
+    DebugStr(Arc<str>),
     /// Emits a trace to the host.
     Trace(u32),
 }
@@ -56,6 +58,7 @@ impl Decorator {
             },
             Self::Debug(debug) => Blake3_256::hash(debug.to_string().as_bytes()),
             Self::Trace(trace) => Blake3_256::hash(&trace.to_le_bytes()),
+            Self::DebugStr(msg) => Blake3_256::hash(msg.to_string().as_bytes()),
         }
     }
 }
@@ -74,6 +77,7 @@ impl fmt::Display for Decorator {
             },
             Self::Debug(options) => write!(f, "debug({options})"),
             Self::Trace(trace_id) => write!(f, "trace({trace_id})"),
+            Self::DebugStr(msg) => write!(f, "debug.str=\"{msg}\""),
         }
     }
 }

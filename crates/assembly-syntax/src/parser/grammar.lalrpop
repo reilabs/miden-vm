@@ -178,6 +178,7 @@ extern {
         "reversedw" => Token::Reversedw,
         "sdepth" => Token::Sdepth,
         "stack" => Token::Stack,
+        "str" => Token::Str,
         "struct" => Token::Struct,
         "sub" => Token::Sub,
         "swap" => Token::Swap,
@@ -1133,6 +1134,8 @@ Debug: Instruction = {
             Instruction::Debug(DebugOptions::AdvStackTop(0.into())),
         }
     },
+	// HACK: reuse ImmError for this, since it acts the same in the parser.
+    "debug" "." "str" "=" <value:ImmError> => Instruction::DebugStr(value),
     "emit" => Instruction::Emit,
     // emit.EVENT_CONST  where EVENT_CONST is defined via const.EVENT_CONST=event("...")
     "emit" "." <name:ConstantName> => Instruction::EmitImm(Immediate::Constant(name)),

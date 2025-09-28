@@ -49,6 +49,7 @@
 //! override the methods of those nodes it cares about. Changes to the AST only require modifying
 //! the code in this module, with the exception of visitors whose logic must be updated to reflect
 //! modifications to specific nodes they care about.
+use alloc::sync::Arc;
 use core::ops::ControlFlow;
 
 use miden_debug_types::Span;
@@ -110,6 +111,10 @@ pub trait Visit<T = ()> {
     }
     fn visit_debug_options(&mut self, options: Span<&DebugOptions>) -> ControlFlow<T> {
         visit_debug_options(self, options)
+    }
+    fn visit_debug_str(&mut self, _: &Immediate<Arc<str>>) -> ControlFlow<T> {
+        // FIXME: don't stub this.
+        ControlFlow::Continue(())
     }
     fn visit_exec(&mut self, target: &InvocationTarget) -> ControlFlow<T> {
         visit_exec(self, target)
@@ -348,6 +353,7 @@ where
         SysCall(target) => visitor.visit_syscall(target),
         ProcRef(target) => visitor.visit_procref(target),
         Debug(options) => visitor.visit_debug_options(Span::new(span, options)),
+        DebugStr(msg) => visitor.visit_debug_str(msg),
         Nop | Assert | AssertEq | AssertEqw | Assertz | Add | Sub | Mul | Div | Neg | ILog2
         | Inv | Incr | Pow2 | Exp | ExpBitLength(_) | Not | And | Or | Xor | Eq | Neq | Eqw
         | Lt | Lte | Gt | Gte | IsOdd | Ext2Add | Ext2Sub | Ext2Mul | Ext2Div | Ext2Neg
@@ -565,6 +571,10 @@ pub trait VisitMut<T = ()> {
     }
     fn visit_mut_debug_options(&mut self, options: Span<&mut DebugOptions>) -> ControlFlow<T> {
         visit_mut_debug_options(self, options)
+    }
+    fn visit_mut_debug_str(&mut self, _: &Immediate<Arc<str>>) -> ControlFlow<T> {
+        // FIXME: don't stub this.
+        ControlFlow::Continue(())
     }
     fn visit_mut_exec(&mut self, target: &mut InvocationTarget) -> ControlFlow<T> {
         visit_mut_exec(self, target)
@@ -806,6 +816,7 @@ where
         SysCall(target) => visitor.visit_mut_syscall(target),
         ProcRef(target) => visitor.visit_mut_procref(target),
         Debug(options) => visitor.visit_mut_debug_options(Span::new(span, options)),
+        DebugStr(msg) => visitor.visit_mut_debug_str(msg),
         Nop | Assert | AssertEq | AssertEqw | Assertz | Add | Sub | Mul | Div | Neg | ILog2
         | Inv | Incr | Pow2 | Exp | ExpBitLength(_) | Not | And | Or | Xor | Eq | Neq | Eqw
         | Lt | Lte | Gt | Gte | IsOdd | Ext2Add | Ext2Sub | Ext2Mul | Ext2Div | Ext2Neg

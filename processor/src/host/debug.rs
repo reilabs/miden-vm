@@ -1,4 +1,4 @@
-use alloc::vec::Vec;
+use alloc::{sync::Arc, vec::Vec};
 use std::{cmp::min, println, string::ToString};
 
 use miden_core::{DebugOptions, Felt};
@@ -30,6 +30,14 @@ pub fn print_debug_info(process: &ProcessState, options: &DebugOptions) {
             print_vm_adv_stack(process, n);
         },
     }
+}
+
+pub fn print_debug_str(process: &ProcessState, msg: Arc<str>) {
+    // FIXME: don't hardcode ANSI codes lol
+    println!(
+        "\n\x1b[2mDebug message before step\x1b[0m \x1b[1m{}\x1b[0m: \x1b[36m{msg}\x1b[0m\n",
+        process.clk(),
+    );
 }
 
 // HELPER FUNCTIONS

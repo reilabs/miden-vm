@@ -678,6 +678,12 @@ impl Process {
                     host.on_debug(process, options)?;
                 }
             },
+            Decorator::DebugStr(msg) => {
+                if self.decoder.in_debug_mode() {
+                    let process = &mut self.state();
+                    host.on_debug_str(process, Arc::clone(msg))?;
+                }
+            },
             Decorator::AsmOp(assembly_op) => {
                 if self.decoder.in_debug_mode() {
                     self.decoder.append_asmop(self.system.clk(), assembly_op.clone());
