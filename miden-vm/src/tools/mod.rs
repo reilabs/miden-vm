@@ -73,6 +73,7 @@ impl Analyze {
             .unwrap();
 
         let execution_details = analyze(&program, stack_inputs, advice_inputs, host);
+        let cycs: usize = execution_details.asm_op_stats().iter().map(|s| s.total_vm_cycles).sum();
 
         println!("============================================================");
         let err_part = if execution_details.error.is_some() {
@@ -80,7 +81,7 @@ impl Analyze {
         } else {
             ""
         };
-        print!("Analyzed {program_name} program{err_part}");
+        print!("Analyzed {program_name} program{err_part} (asm cycles: {cycs})");
         if let Some(input_path) = &self.input_file {
             let input_name = input_path
                 .file_name()
