@@ -72,6 +72,126 @@ proc.memcopy_word_range_and_advance_ptrs
     end
 end
 
+#! Copies `n` words from `read_ptr` to `write_ptr`.
+#!
+#! `read_ptr` and `write_ptr` *must be* word-aligned.
+#!
+#! Stack transition looks as follows:
+#! [n, read_ptr, write_ptr, ...] -> [...]
+#! cycles: 15 + 16n
+proc.memcopy_words_from_end
+  # The loop variable is changed with an add instead of sub because the former
+  # uses one fewer cycle. So here the counter is negated. (1 cycles)
+  # stack: [-n, read_ptr, write_ptr, ...]
+  neg
+
+  # Pad the stack because mem_load overwrites it (4 cycles)
+  # stack: [0, 0, 0, 0, -n, read_ptr, write_ptr, ...]
+  padw
+
+  # check loop condition (3 cycles)
+  # stack: [b, 0, 0, 0, 0, -n, read_ptr, write_ptr, ...]
+  dup.4 neq.0
+
+  # LOOP: [0, 0, 0, 0, -n, read_ptr, write_ptr, ...]
+  # while(n!=0) (16 cycles)
+  while.true
+    # perform read (2 cycles)
+    # stack: [a3, a2, a1, a0, -n, read_ptr, write_ptr, ...]
+    dup.5 mem_loadw
+
+    # peform write (2 cycles)
+    # stack: [a3, a2, a1, a0, -n, read_ptr, write_ptr, ...]
+    dup.6 mem_storew
+
+    # note: the values of `A` are no longer necessary, use 0 to signal its a
+    # padding
+    # stack: [-n, read_ptr, write_ptr, x, 0, 0, 0, 0, ...]
+    swapw
+
+    # stack: [-n+1, read_ptr-4, write_ptr-4, x, 0, 0, 0, 0, ...]
+    # update counters (9 cycles)
+    add.1 movup.3 movup.3 sub.4 movup.3 sub.4 movup.3
+
+    # stack: [0, 0, 0, 0, -n+1, read_ptr+4, write_ptr+4, x, ...]
+    swapw
+
+    dup.4 neq.0 # while(n!=0) (3 cycles)
+  end
+
+  # clean stack (7 cycles)
+  # stack: [...]
+  dropw drop drop drop
+end
+
+#! Copies from the memory range starting at `read_start_ptr` and ending at `read_end_ptr`, to
+#! memory starting at `write_ptr`, and returns updated pointers, advanced by how much data was
+#! copied.
+#!
+#! Unlike mem::memcopy_words, this procedure takes a start and end pointer, and does not copy
+#! anything if `end - start < 1`.
+#!
+#! Inputs: [read_start_ptr, read_end_ptr, write_ptr]
+#! Outputs: [read_ptr', write_ptr']
+#!
+#! Where:
+#! - `read_ptr'` is `read_start_ptr` plus the count of elements that were copied.
+#! - `write_ptr'` is `write_ptr` plus the count of elements that were copied.
+proc.memcopy_word_range_from_end_and_advance_ptrs
+    # => [read_start_ptr, read_end_ptr, write_ptr]
+
+    # => [cur_read=read_start_ptr, read_end, cur_write=write_ptr]
+
+    dup movdn.2
+    # => [cur_read, read_end, cur_read, cur_write]
+
+    # Our pointers are originally from local memory, whose address range fits in a u32:
+    # https://0xmiden.github.io/miden-vm/user_docs/assembly/execution_contexts.html#memory-layout.
+    u32overflowing_sub
+    # => [ovf, read_end - cur_read, cur_read, cur_write]
+
+    dup.1 neq.0
+    # => [nonzero, ovf, read_end - cur_read, cur_read, cur_write]
+
+    # Fewer cycles than xor.
+    u32xor
+    # => [anything_to_read, read_end - cur_read, cur_read, cur_write]
+
+    if.true
+        # => [num_felts, cur_read, cur_write]
+        dup sub.4 dup.2 add
+        # => [read_end, num_felts, cur_read, cur_write]
+
+        dup.1 sub.4 dup.4 add
+        # => [write_end, read_end, num_felts, cur_read, cur_write]
+
+        swap
+        # => [read_end, write_end, num_felts, cur_read, cur_write]
+
+        movup.2 div.4
+        # => [num_words, read_end, write_end, cur_read, cur_write]
+
+        dup movdn.3
+        # => [num_words, read_end, write_end, num_words, cur_read, cur_write]
+
+        exec.memcopy_words_from_end
+        # => [num_words, cur_read, cur_write]
+
+        mul.4 dup
+        # => [num_elems, num_elems, cur_read, cur_write]
+
+        # cur_write += num_elems
+        movup.3 add
+        # => [cur_write', num_elems, cur_read]
+
+        # cur_read += num_elems
+        swap.2 add
+        # => [cur_read', cur_write']
+    else
+        drop
+    end
+end
+
 #! Hashes an array of SMT leaves, then updates both the advice map and Merkle store.
 #!
 #! Returns the node value (hash) of the previous leaf at the given index, as well as
@@ -215,79 +335,35 @@ proc.insert_into_leaf.8196
     # Save K[3], which is the leaf index `i`.
     dup.5 movdn.9
     # => [key_ptr, V, K, i, R]
+ 
+    #
+    # STEP 1: Copy from key_ptr..pairs_array_end to key_ptr+8 to make room.
+    #
+    dup dup add.8 loc_load.1 movup.2
+    # => [key_ptr, pairs_array_end, key_ptr+8, key_ptr,V, K, i, R]
+
+    exec.memcopy_word_range_from_end_and_advance_ptrs
+    # => [cur_read', cur_write', key_ptr, V, K, i, R]
+
+    drop drop
+    # => [key_ptr, V, K, i, R]
 
     #
-    # STEP 1: Copy from pairs_array_start..key_ptr.
+    # STEP 2: write (K, V) at key_ptr.
     #
+    movdn.8 swapw
+    # => [K, V, key_ptr, i, R]
 
-    # cur_read = pairs_array_start
-    loc_load.0 loc_store.2
+    dup.8 mem_storew dropw
+    # => [V, key_ptr, i, R]
 
-    # cur_write = &LOCALS[4]
-    locaddr.4 loc_store.3
-
-    loc_load.2 # cur_read
-    # => [cur_read, key_ptr, V, K, i, R]
-
-    loc_load.3 # cur_write
-    # => [cur_write, cur_read, key_ptr, V, K, i, R]
-
-    movdn.2
-    # => [cur_read, read_end=key_ptr, cur_write; V, K, i, R]
-
-    exec.memcopy_word_range_and_advance_ptrs
-    # => [cur_read', cur_write', V, K, i, R]
-    loc_store.2 loc_store.3
-
-    # => [V, K, i, R]
-
-    #
-    # STEP 2: write (K, V) there.
-    #
-
-    swapw
-    # => [K, V, i, R]
-
-    loc_load.3 movdn.4 dup.4
-    # => [cur_write, K, cur_write, V, i, R]
-
-    # *cur_write = K
-    mem_storew dropw
-    # => [cur_write, V, i, R]
-
-    add.4 movdn.4 dup.4
-    # => [cur_write, V, cur_write, i, R]
-
-    # *cur_write = V
-    mem_storew dropw
-    # => [cur_write, i, R, ]
-
-    # cur_write = &new_pairs[2]
-    add.4 loc_store.3
+    movup.4 add.4 mem_storew dropw
     # => [i, R]
 
     #
-    # STEP 3: copy from cur_read..pairs_array_end
+    # STEP 3: Prepare for hash_memory_words and mtree_set.
     #
-
-    loc_load.3 # cur_write
-    loc_load.1 # read_end = pairs_array_end
-    loc_load.2 # cur_read
-    # => [cur_read, read_end, cur_write, i, R]
-
-    exec.memcopy_word_range_and_advance_ptrs
-    # => [cur_read', cur_write', i, R]
-
-    # Prepare for hash_memory_words and mtree_set.
-
-    drop
-    # => [cur_write, i, R]
-
-    # end_addr = cur_write
-    # => [end_addr, i, R]
-
-    # start_addr = &LOCALS[4]
-    locaddr.4
+    loc_load.1 add.8 loc_load.0
     # => [start_addr, end_addr, i, R]
 
     exec.hash_and_insert_mem
